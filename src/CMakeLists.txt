@@ -31,12 +31,14 @@ set_target_properties(giac_wrapper PROPERTIES
 )
 
 # Include directories
+# Note: GIAC headers include mpfr.h and gmp.h which are bundled in the same directory
 target_include_directories(giac_wrapper
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${GIAC_INCLUDE_DIRS}
+        ${GIAC_INCLUDE_DIRS}/giac  # For bundled mpfr.h and gmp.h
 )
 
 # Link libraries

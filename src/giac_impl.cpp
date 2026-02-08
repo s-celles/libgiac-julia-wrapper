@@ -21,10 +21,13 @@ namespace giac_julia {
 // ============================================================================
 
 struct GiacContextImpl {
-    giac::context ctx;
+    // Context is never freed to avoid destruction order issues with GIAC's
+    // internal reference counting. This is an intentional leak to prevent crashes.
+    giac::context* ctx;
     std::function<void(const std::string&)> warning_handler;
 
-    GiacContextImpl() : ctx() {}
+    GiacContextImpl() : ctx(new giac::context()), warning_handler(nullptr) {}
+    // Destructor intentionally does NOT delete ctx
 };
 
 struct GenImpl {
@@ -36,6 +39,27 @@ struct GenImpl {
 };
 
 // ============================================================================
+// Thread-local global context (fixes context lifetime issues)
+// ============================================================================
+// GIAC expects contexts to outlive giac::gen objects that reference them.
+// The context is intentionally never freed to avoid destruction order issues
+// during process/thread exit. This is a deliberate memory leak that prevents
+// use-after-free crashes when giac::gen destructors run after context cleanup.
+//
+// Thread-local storage ensures:
+// 1. Context persists for the lifetime of the program (never freed)
+// 2. Thread-safe operation without explicit locking
+
+namespace {
+    giac::context& get_thread_local_context() {
+        // Use pointer with intentional leak - never deleted
+        // This prevents crashes during static destruction order
+        thread_local giac::context* ctx = new giac::context();
+        return *ctx;
+    }
+}
+
+// ============================================================================
 // Library initialization
 // ============================================================================
 
@@ -45,6 +69,8 @@ namespace {
 
     void initialize_giac_library() {
         std::call_once(giac_init_flag, []() {
+            // Initialize the thread-local context for the main thread
+            (void)get_thread_local_context();
             giac_initialized = true;
         });
     }
@@ -88,8 +114,8 @@ GiacContext& GiacContext::operator=(GiacContext&& other) noexcept = default;
 
 std::string GiacContext::eval(const std::string& input) {
     try {
-        giac::gen result = giac::eval(giac::gen(input, &impl_->ctx), &impl_->ctx);
-        return result.print(&impl_->ctx);
+        giac::gen result = giac::eval(giac::gen(input, impl_->ctx), impl_->ctx);
+        return result.print(impl_->ctx);
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("GIAC evaluation error: ") + e.what());
     }
@@ -97,8 +123,8 @@ std::string GiacContext::eval(const std::string& input) {
 
 void GiacContext::set_variable(const std::string& name, const std::string& value) {
     try {
-        giac::gen val(value, &impl_->ctx);
-        giac::sto(val, giac::gen(name, &impl_->ctx), &impl_->ctx);
+        giac::gen val(value, impl_->ctx);
+        giac::sto(val, giac::gen(name, impl_->ctx), impl_->ctx);
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Failed to set variable: ") + e.what());
     }
@@ -106,8 +132,8 @@ void GiacContext::set_variable(const std::string& name, const std::string& value
 
 std::string GiacContext::get_variable(const std::string& name) {
     try {
-        giac::gen result = giac::eval(giac::gen(name, &impl_->ctx), &impl_->ctx);
-        return result.print(&impl_->ctx);
+        giac::gen result = giac::eval(giac::gen(name, impl_->ctx), impl_->ctx);
+        return result.print(impl_->ctx);
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Failed to get variable: ") + e.what());
     }
@@ -154,7 +180,8 @@ void GiacContext::clear_warning_handler() {
 Gen::Gen() : impl_(std::make_unique<GenImpl>()) {}
 
 Gen::Gen(const std::string& expr) : impl_(std::make_unique<GenImpl>()) {
-    giac::context ctx;
+    initialize_giac_library();  // Ensure GIAC is initialized
+    giac::context& ctx = get_thread_local_context();
     impl_->g = giac::gen(expr, &ctx);
 }
 
@@ -175,7 +202,7 @@ Gen& Gen::operator=(Gen&& other) noexcept = default;
 Gen::Gen(std::unique_ptr<GenImpl> impl) : impl_(std::move(impl)) {}
 
 std::string Gen::to_string() const {
-    giac::context ctx;
+    giac::context& ctx = get_thread_local_context();
     return impl_->g.print(&ctx);
 }
 
@@ -202,22 +229,22 @@ std::string Gen::type_name() const {
 }
 
 Gen Gen::eval() const {
-    giac::context ctx;
+    giac::context& ctx = get_thread_local_context();
     return Gen(std::make_unique<GenImpl>(giac::eval(impl_->g, &ctx)));
 }
 
 Gen Gen::simplify() const {
-    giac::context ctx;
+    giac::context& ctx = get_thread_local_context();
     return Gen(std::make_unique<GenImpl>(giac::simplify(impl_->g, &ctx)));
 }
 
 Gen Gen::expand() const {
-    giac::context ctx;
+    giac::context& ctx = get_thread_local_context();
     return Gen(std::make_unique<GenImpl>(giac::expand(impl_->g, &ctx)));
 }
 
 Gen Gen::factor() const {
-    giac::context ctx;
+    giac::context& ctx = get_thread_local_context();
     // Use _factor which is available in most GIAC versions
     giac::gen result = giac::eval(giac::symbolic(giac::at_factor, impl_->g), &ctx);
     return Gen(std::make_unique<GenImpl>(result));
