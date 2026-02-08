@@ -51,10 +51,15 @@ jobs:
         run: |
           brew install miniforge
           eval "$(conda shell.bash hook)"
+          conda activate base
           conda install -c conda-forge giac -y
           # Export conda paths for subsequent steps
-          echo "CONDA_PREFIX=$(conda info --base)" >> $GITHUB_ENV
-          echo "$(conda info --base)/bin" >> $GITHUB_PATH
+          CONDA_BASE=$(conda info --base)
+          echo "CONDA_PREFIX=$CONDA_BASE" >> $GITHUB_ENV
+          echo "$CONDA_BASE/bin" >> $GITHUB_PATH
+          echo "$CONDA_BASE/lib" >> $GITHUB_PATH
+          # Store paths for CMake
+          echo "GIAC_ROOT=$CONDA_BASE" >> $GITHUB_ENV
 
       - name: Install CxxWrap.jl
         run: julia -e 'using Pkg; Pkg.add("CxxWrap")'
@@ -65,11 +70,21 @@ jobs:
           CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
           echo "prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
 
-      - name: Configure CMake
+      - name: Configure CMake (Linux)
+        if: runner.os == 'Linux'
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH=${{ steps.cxxwrap.outputs.prefix }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ steps.cxxwrap.outputs.prefix }};${{ env.GIAC_ROOT }}" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 

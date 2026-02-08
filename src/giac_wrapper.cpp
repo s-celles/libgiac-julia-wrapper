@@ -3,10 +3,15 @@
  * @brief Main wrapper implementation and JLCXX_MODULE definition
  */
 
-#include "giac_wrapper.h"
+// IMPORTANT: Include GIAC headers BEFORE jlcxx to avoid macro conflicts
+#include <giac/config.h>
 #include <giac/giac.h>
+
+// Now include jlcxx headers
 #include <jlcxx/jlcxx.hpp>
 #include <jlcxx/stl.hpp>
+
+#include "giac_wrapper.h"
 #include <mutex>
 
 namespace giac_julia {
@@ -44,7 +49,13 @@ namespace {
 // ============================================================================
 
 std::string giac_version() {
+#ifdef GIAC_VERSION
     return GIAC_VERSION;
+#elif defined(VERSION)
+    return VERSION;
+#else
+    return "unknown";
+#endif
 }
 
 std::string wrapper_version() {

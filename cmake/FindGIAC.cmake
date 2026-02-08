@@ -19,11 +19,13 @@ find_path(GIAC_INCLUDE_DIR
     HINTS
         ${PC_GIAC_INCLUDEDIR}
         ${PC_GIAC_INCLUDE_DIRS}
+        ENV GIAC_ROOT
+        ENV CONDA_PREFIX
         /usr/include
         /usr/local/include
         /opt/local/include
         /opt/homebrew/include
-    PATH_SUFFIXES giac
+    PATH_SUFFIXES include
 )
 
 # Find library
@@ -32,12 +34,15 @@ find_library(GIAC_LIBRARY
     HINTS
         ${PC_GIAC_LIBDIR}
         ${PC_GIAC_LIBRARY_DIRS}
+        ENV GIAC_ROOT
+        ENV CONDA_PREFIX
         /usr/lib
         /usr/lib64
         /usr/local/lib
         /usr/local/lib64
         /opt/local/lib
         /opt/homebrew/lib
+    PATH_SUFFIXES lib lib64
 )
 
 # Get version from pkg-config or header
