@@ -114,27 +114,29 @@ std::string GiacContext::get_variable(const std::string& name) {
 }
 
 void GiacContext::set_timeout(double seconds) {
-    impl_->ctx.timeout = static_cast<int>(seconds);
+    // GIAC uses global timeout setting
+    giac::caseval_maxtime = static_cast<int>(seconds);
 }
 
 double GiacContext::get_timeout() const {
-    return static_cast<double>(impl_->ctx.timeout);
+    return static_cast<double>(giac::caseval_maxtime);
 }
 
 void GiacContext::set_precision(int digits) {
-    impl_->ctx.default_prec = digits;
+    // Set decimal precision
+    giac::decimal_digits(&impl_->ctx) = digits;
 }
 
 int GiacContext::get_precision() const {
-    return impl_->ctx.default_prec;
+    return giac::decimal_digits(&impl_->ctx);
 }
 
 bool GiacContext::is_complex_mode() const {
-    return impl_->ctx.complex_mode;
+    return giac::complex_mode(&impl_->ctx);
 }
 
 void GiacContext::set_complex_mode(bool enable) {
-    impl_->ctx.complex_mode = enable;
+    giac::complex_mode(&impl_->ctx) = enable;
 }
 
 void GiacContext::set_warning_handler(std::function<void(const std::string&)> handler) {
@@ -216,7 +218,8 @@ Gen Gen::expand() const {
 
 Gen Gen::factor() const {
     giac::context ctx;
-    return Gen(std::make_unique<GenImpl>(giac::factor(impl_->g, &ctx)));
+    // factor takes 3 arguments: expression, variable (undef for auto), and context
+    return Gen(std::make_unique<GenImpl>(giac::factor(impl_->g, giac::gen(), &ctx)));
 }
 
 Gen Gen::operator+(const Gen& other) const {
