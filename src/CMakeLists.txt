@@ -20,12 +20,14 @@ set_source_files_properties(giac_wrapper.cpp PROPERTIES
 )
 
 # Set library properties
+# Note: Using default visibility for now to allow tests to link
+# TODO: Add proper export macros for production builds
 set_target_properties(giac_wrapper PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 0
     OUTPUT_NAME "giac_wrapper"
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
+    CXX_VISIBILITY_PRESET default
+    VISIBILITY_INLINES_HIDDEN OFF
 )
 
 # Include directories
