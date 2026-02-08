@@ -1,0 +1,81 @@
+# GitHub Actions CI Workflow for GIAC Julia Wrapper
+# Builds and tests on Linux (Ubuntu) and macOS
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        julia-version: ['1.10']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Julia ${{ matrix.julia-version }}
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - name: Cache Julia packages
+        uses: julia-actions/cache@v2
+
+      - name: Cache C++ compilation (ccache)
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+
+      - name: Install GIAC (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgiac-dev libgiac0
+
+      - name: Install GIAC (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install miniforge
+          eval "$(conda shell.bash hook)"
+          conda install -c conda-forge giac -y
+          # Export conda paths for subsequent steps
+          echo "CONDA_PREFIX=$(conda info --base)" >> $GITHUB_ENV
+          echo "$(conda info --base)/bin" >> $GITHUB_PATH
+
+      - name: Install CxxWrap.jl
+        run: julia -e 'using Pkg; Pkg.add("CxxWrap")'
+
+      - name: Get CxxWrap prefix path
+        id: cxxwrap
+        run: |
+          CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
+          echo "prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH=${{ steps.cxxwrap.outputs.prefix }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure --verbose
