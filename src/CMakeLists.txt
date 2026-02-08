@@ -2,11 +2,21 @@
 # Build configuration for the GIAC wrapper library
 
 # Define the wrapper library
+# Note: giac_impl.cpp includes GIAC headers, giac_wrapper.cpp includes jlcxx headers
+# They are kept separate to avoid macro conflicts between GIAC and Julia
 add_library(giac_wrapper SHARED
+    giac_impl.cpp
     giac_wrapper.cpp
-    context.cpp
-    gen.cpp
-    warnings.cpp
+)
+
+# Set different C++ standards for different source files:
+# - giac_impl.cpp uses C++14 (GIAC uses deprecated features removed in C++17)
+# - giac_wrapper.cpp uses C++17 (required by jlcxx)
+set_source_files_properties(giac_impl.cpp PROPERTIES
+    COMPILE_FLAGS "-std=c++14"
+)
+set_source_files_properties(giac_wrapper.cpp PROPERTIES
+    COMPILE_FLAGS "-std=c++17"
 )
 
 # Set library properties
@@ -49,6 +59,6 @@ install(TARGETS giac_wrapper
     RUNTIME DESTINATION bin
 )
 
-install(FILES giac_wrapper.h
+install(FILES giac_impl.h
     DESTINATION include/giac_julia
 )
