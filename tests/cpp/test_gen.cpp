@@ -3,7 +3,7 @@
  * @brief Tests for Gen objects (User Story 3)
  */
 
-#include "giac_wrapper.h"
+#include "giac_impl.h"
 #include <iostream>
 #include <cassert>
 #include <string>

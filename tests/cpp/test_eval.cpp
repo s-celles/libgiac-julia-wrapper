@@ -3,7 +3,7 @@
  * @brief Tests for expression evaluation (User Story 1)
  */
 
-#include "giac_wrapper.h"
+#include "giac_impl.h"
 #include <iostream>
 #include <cassert>
 #include <string>
@@ -49,20 +49,20 @@ TEST(factor_operation) {
 // T018: Test error handling - invalid expression
 TEST(error_handling) {
     GiacContext ctx;
-    ASSERT_THROWS(ctx.eval("invalid((("), GiacError);
+    ASSERT_THROWS(ctx.eval("invalid((("), std::runtime_error);
 }
 
 // Additional tests
 TEST(version_functions) {
-    std::string gv = giac_version();
-    std::string wv = wrapper_version();
+    std::string gv = get_giac_version();
+    std::string wv = get_wrapper_version();
     ASSERT_EQ("0.1.0", wv);
     // GIAC version should be non-empty
     assert(!gv.empty());
 }
 
 TEST(giac_available) {
-    assert(is_giac_available());
+    assert(check_giac_available());
 }
 
 int main() {

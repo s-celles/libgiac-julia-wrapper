@@ -3,7 +3,7 @@
  * @brief Tests for context management (User Story 2)
  */
 
-#include "giac_wrapper.h"
+#include "giac_impl.h"
 #include <iostream>
 #include <cassert>
 #include <string>
