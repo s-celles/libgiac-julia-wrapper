@@ -8,8 +8,9 @@
  */
 
 // Include GIAC headers first, before any potential conflicts
-#include <giac/config.h>
-#include <giac/giac.h>
+// For GIAC 2.0.0, headers are directly in include path (not in giac/ subdirectory)
+#include <config.h>
+#include <giac.h>
 
 #include "giac_impl.h"
 #include <mutex>

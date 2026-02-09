@@ -14,18 +14,21 @@ if(PKG_CONFIG_FOUND)
 endif()
 
 # Find include directory
+# For GIAC 2.0.0, headers are directly in src/ not src/giac/
 find_path(GIAC_INCLUDE_DIR
-    NAMES giac/giac.h
+    NAMES giac.h
     HINTS
         ${PC_GIAC_INCLUDEDIR}
         ${PC_GIAC_INCLUDE_DIRS}
         ENV GIAC_ROOT
         ENV CONDA_PREFIX
+        ${CMAKE_SOURCE_DIR}/../giac-2.0.0/src
+        /usr/include/giac
         /usr/include
         /usr/local/include
         /opt/local/include
         /opt/homebrew/include
-    PATH_SUFFIXES include
+    PATH_SUFFIXES include giac
 )
 
 # Find library
@@ -36,13 +39,14 @@ find_library(GIAC_LIBRARY
         ${PC_GIAC_LIBRARY_DIRS}
         ENV GIAC_ROOT
         ENV CONDA_PREFIX
+        ${CMAKE_SOURCE_DIR}/../giac-2.0.0/src/.libs
         /usr/lib
         /usr/lib64
         /usr/local/lib
         /usr/local/lib64
         /opt/local/lib
         /opt/homebrew/lib
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 .libs
 )
 
 # Get version from pkg-config or header
