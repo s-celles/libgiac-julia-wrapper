@@ -52,7 +52,7 @@ jobs:
           brew install miniforge
           eval "$(conda shell.bash hook)"
           conda activate base
-          conda install -c conda-forge giac -y
+          conda install -c conda-forge giac gmp -y
           # Export conda paths for subsequent steps
           CONDA_BASE=$(conda info --base)
           echo "CONDA_PREFIX=$CONDA_BASE" >> $GITHUB_ENV
@@ -60,6 +60,8 @@ jobs:
           echo "$CONDA_BASE/lib" >> $GITHUB_PATH
           # Store paths for CMake
           echo "GIAC_ROOT=$CONDA_BASE" >> $GITHUB_ENV
+          # Debug: show where gmp.h is located
+          find $CONDA_BASE/include -name "gmp.h" 2>/dev/null || echo "gmp.h not found in conda include"
 
       - name: Install CxxWrap.jl
         run: julia -e 'using Pkg; Pkg.add("CxxWrap")'

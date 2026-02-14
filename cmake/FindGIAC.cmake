@@ -60,9 +60,34 @@ elseif(GIAC_INCLUDE_DIR AND EXISTS "${GIAC_INCLUDE_DIR}/giac/config.h")
     endif()
 endif()
 
+# Find GMP include directory (required by GIAC headers)
+find_path(GMP_INCLUDE_DIR
+    NAMES gmp.h
+    HINTS
+        ${PC_GIAC_INCLUDEDIR}
+        ${PC_GIAC_INCLUDE_DIRS}
+        ENV GIAC_ROOT
+        ENV CONDA_PREFIX
+        /usr/include
+        /usr/local/include
+        /opt/local/include
+        /opt/homebrew/include
+    PATH_SUFFIXES include
+)
+
 # Set output variables
 set(GIAC_INCLUDE_DIRS ${GIAC_INCLUDE_DIR})
+if(GMP_INCLUDE_DIR AND NOT "${GMP_INCLUDE_DIR}" STREQUAL "${GIAC_INCLUDE_DIR}")
+    list(APPEND GIAC_INCLUDE_DIRS ${GMP_INCLUDE_DIR})
+endif()
 set(GIAC_LIBRARIES ${GIAC_LIBRARY})
+
+# Debug output
+if(GMP_INCLUDE_DIR)
+    message(STATUS "Found GMP include dir: ${GMP_INCLUDE_DIR}")
+else()
+    message(WARNING "GMP include directory not found - GIAC may fail to compile")
+endif()
 
 # Handle standard find_package arguments
 include(FindPackageHandleStandardArgs)
@@ -76,8 +101,8 @@ if(GIAC_FOUND AND NOT TARGET GIAC::giac)
     add_library(GIAC::giac UNKNOWN IMPORTED)
     set_target_properties(GIAC::giac PROPERTIES
         IMPORTED_LOCATION "${GIAC_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${GIAC_INCLUDE_DIR}"
+        INTERFACE_INCLUDE_DIRECTORIES "${GIAC_INCLUDE_DIRS}"
     )
 endif()
 
-mark_as_advanced(GIAC_INCLUDE_DIR GIAC_LIBRARY)
+mark_as_advanced(GIAC_INCLUDE_DIR GIAC_LIBRARY GMP_INCLUDE_DIR)
