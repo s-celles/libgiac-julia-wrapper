@@ -28,6 +28,13 @@ std::string get_wrapper_version();
 bool check_giac_available();
 
 // ============================================================================
+// Configuration Functions
+// ============================================================================
+
+void set_xcasroot(const std::string& path);
+std::string get_xcasroot();
+
+// ============================================================================
 // GiacContext - Opaque wrapper around giac::context
 // ============================================================================
 

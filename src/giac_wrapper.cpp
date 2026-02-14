@@ -21,6 +21,10 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     mod.method("wrapper_version", &get_wrapper_version);
     mod.method("is_giac_available", &check_giac_available);
 
+    // Register configuration functions
+    mod.method("set_xcasroot", &set_xcasroot);
+    mod.method("get_xcasroot", &get_xcasroot);
+
     // Register GiacContext type
     mod.add_type<GiacContext>("GiacContext")
         .constructor<>()

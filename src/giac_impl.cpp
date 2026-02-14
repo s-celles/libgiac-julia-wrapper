@@ -101,6 +101,19 @@ bool check_giac_available() {
 }
 
 // ============================================================================
+// Configuration Functions
+// ============================================================================
+
+void set_xcasroot(const std::string& path) {
+    // giac::xcasroot() returns a reference to a static string
+    giac::xcasroot() = path;
+}
+
+std::string get_xcasroot() {
+    return giac::xcasroot();
+}
+
+// ============================================================================
 // GiacContext Implementation
 // ============================================================================
 
