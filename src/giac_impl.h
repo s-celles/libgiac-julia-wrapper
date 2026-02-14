@@ -33,6 +33,9 @@ bool check_giac_available();
 
 void set_xcasroot(const std::string& path);
 std::string get_xcasroot();
+bool init_help(const std::string& aide_cas_path);
+std::string list_commands();
+int help_count();
 
 // ============================================================================
 // GiacContext - Opaque wrapper around giac::context

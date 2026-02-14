@@ -113,6 +113,38 @@ std::string get_xcasroot() {
     return giac::xcasroot();
 }
 
+bool init_help(const std::string& aide_cas_path) {
+    // Pre-initialize the help database with the correct path
+    // This prevents GIAC from trying fallback paths that print error messages
+    int helpitems = 0;
+    if (!giac::vector_aide_ptr()) {
+        giac::vector_aide_ptr() = new std::vector<giac::aide>;
+    }
+    *giac::vector_aide_ptr() = giac::readhelp(aide_cas_path.c_str(), helpitems, false);
+    return helpitems > 0;
+}
+
+std::string list_commands() {
+    std::string result;
+    if (giac::vector_aide_ptr() && !giac::vector_aide_ptr()->empty()) {
+        const auto& aides = *giac::vector_aide_ptr();
+        for (const auto& a : aides) {
+            if (!a.cmd_name.empty()) {
+                if (!result.empty()) result += '\n';
+                result += a.cmd_name;
+            }
+        }
+    }
+    return result;
+}
+
+int help_count() {
+    if (giac::vector_aide_ptr()) {
+        return static_cast<int>(giac::vector_aide_ptr()->size());
+    }
+    return 0;
+}
+
 // ============================================================================
 // GiacContext Implementation
 // ============================================================================

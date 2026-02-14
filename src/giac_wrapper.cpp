@@ -24,6 +24,9 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     // Register configuration functions
     mod.method("set_xcasroot", &set_xcasroot);
     mod.method("get_xcasroot", &get_xcasroot);
+    mod.method("init_help", &init_help);
+    mod.method("list_commands", &list_commands);
+    mod.method("help_count", &help_count);
 
     // Register GiacContext type
     mod.add_type<GiacContext>("GiacContext")
