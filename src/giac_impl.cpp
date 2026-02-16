@@ -11,6 +11,9 @@
 // For GIAC 2.0.0, headers are directly in include path (not in giac/ subdirectory)
 #include <config.h>
 #include <giac.h>
+#include <input_lexer.h>
+#include <algorithm>
+#include <set>
 
 #include "giac_impl.h"
 #include <mutex>
@@ -146,6 +149,247 @@ int help_count() {
 }
 
 // ============================================================================
+// Expression Evaluation
+// ============================================================================
+
+Gen giac_eval(const std::string& expr) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen parsed = giac::gen(expr, &ctx);
+    giac::gen result = giac::eval(parsed, &ctx);
+    return Gen(std::make_unique<GenImpl>(result));
+}
+
+// ============================================================================
+// Generic Dispatch Implementation
+// ============================================================================
+
+Gen apply_func(const std::string& name, const Gen& arg) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen func_gen(name, &ctx);
+
+    if (func_gen.type == giac::_FUNC) {
+        // Direct symbolic construction - no serialization
+        giac::gen expr = giac::symbolic(*func_gen._FUNCptr, arg.impl_->g);
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx)));
+    } else {
+        // Fallback: string-based evaluation
+        std::string expr_str = name + "(" + arg.to_string() + ")";
+        giac::gen parsed(expr_str, &ctx);
+        return Gen(std::make_unique<GenImpl>(giac::eval(parsed, &ctx)));
+    }
+}
+
+Gen apply_func2(const std::string& name, const Gen& arg1, const Gen& arg2) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen func_gen(name, &ctx);
+
+    if (func_gen.type == giac::_FUNC) {
+        // Create sequence with two arguments
+        giac::vecteur args;
+        args.push_back(arg1.impl_->g);
+        args.push_back(arg2.impl_->g);
+        giac::gen seq = giac::gen(args, giac::_SEQ__VECT);
+        giac::gen expr = giac::symbolic(*func_gen._FUNCptr, seq);
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx)));
+    } else {
+        // Fallback
+        std::string expr_str = name + "(" + arg1.to_string() + "," + arg2.to_string() + ")";
+        giac::gen parsed(expr_str, &ctx);
+        return Gen(std::make_unique<GenImpl>(giac::eval(parsed, &ctx)));
+    }
+}
+
+Gen apply_func3(const std::string& name, const Gen& arg1, const Gen& arg2, const Gen& arg3) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen func_gen(name, &ctx);
+
+    if (func_gen.type == giac::_FUNC) {
+        // Create sequence with three arguments
+        giac::vecteur args;
+        args.push_back(arg1.impl_->g);
+        args.push_back(arg2.impl_->g);
+        args.push_back(arg3.impl_->g);
+        giac::gen seq = giac::gen(args, giac::_SEQ__VECT);
+        giac::gen expr = giac::symbolic(*func_gen._FUNCptr, seq);
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx)));
+    } else {
+        // Fallback
+        std::string expr_str = name + "(" + arg1.to_string() + "," + arg2.to_string() + "," + arg3.to_string() + ")";
+        giac::gen parsed(expr_str, &ctx);
+        return Gen(std::make_unique<GenImpl>(giac::eval(parsed, &ctx)));
+    }
+}
+
+Gen apply_funcN(const std::string& name, const std::vector<Gen>& args) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen func_gen(name, &ctx);
+
+    if (func_gen.type == giac::_FUNC) {
+        // Create sequence with N arguments
+        giac::vecteur giac_args;
+        for (const auto& arg : args) {
+            giac_args.push_back(arg.impl_->g);
+        }
+        giac::gen seq = giac::gen(giac_args, giac::_SEQ__VECT);
+        giac::gen expr = giac::symbolic(*func_gen._FUNCptr, seq);
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx)));
+    } else {
+        // Fallback: string concatenation
+        std::string expr_str = name + "(";
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (i > 0) expr_str += ",";
+            expr_str += args[i].to_string();
+        }
+        expr_str += ")";
+        giac::gen parsed(expr_str, &ctx);
+        return Gen(std::make_unique<GenImpl>(giac::eval(parsed, &ctx)));
+    }
+}
+
+// ============================================================================
+// Function Listing Implementation
+// ============================================================================
+
+std::string list_builtin_functions() {
+    initialize_giac_library();
+    std::string result;
+    for (auto it = giac::builtin_lexer_functions_begin();
+         it != giac::builtin_lexer_functions_end(); ++it) {
+        if (!result.empty()) result += '\n';
+        result += it->first;
+    }
+    return result;
+}
+
+int builtin_function_count() {
+    return giac::builtin_lexer_functions_number;
+}
+
+std::string list_all_functions() {
+    initialize_giac_library();
+
+    // Use a set for deduplication and automatic sorting
+    std::set<std::string> all_funcs;
+
+    // Add documented commands from help database
+    if (giac::vector_aide_ptr() && !giac::vector_aide_ptr()->empty()) {
+        const auto& aides = *giac::vector_aide_ptr();
+        for (const auto& a : aides) {
+            if (!a.cmd_name.empty()) {
+                all_funcs.insert(a.cmd_name);
+            }
+        }
+    }
+
+    // Add builtin lexer functions
+    for (auto it = giac::builtin_lexer_functions_begin();
+         it != giac::builtin_lexer_functions_end(); ++it) {
+        all_funcs.insert(it->first);
+    }
+
+    // Convert to newline-separated string
+    std::string result;
+    for (const auto& func : all_funcs) {
+        if (!result.empty()) result += '\n';
+        result += func;
+    }
+    return result;
+}
+
+// ============================================================================
+// Tier 1 Direct Wrappers (High Performance - No Name Lookup)
+// ============================================================================
+
+// Helper macro for single-argument Tier 1 wrappers
+#define TIER1_SINGLE_ARG(name, at_symbol) \
+    Gen giac_##name(const Gen& arg) { \
+        initialize_giac_library(); \
+        giac::context& ctx = get_thread_local_context(); \
+        giac::gen expr = giac::symbolic(giac::at_symbol, arg.impl_->g); \
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx))); \
+    }
+
+// Helper macro for two-argument Tier 1 wrappers
+#define TIER1_TWO_ARG(name, at_symbol) \
+    Gen giac_##name(const Gen& arg1, const Gen& arg2) { \
+        initialize_giac_library(); \
+        giac::context& ctx = get_thread_local_context(); \
+        giac::vecteur args; \
+        args.push_back(arg1.impl_->g); \
+        args.push_back(arg2.impl_->g); \
+        giac::gen seq = giac::gen(args, giac::_SEQ__VECT); \
+        giac::gen expr = giac::symbolic(giac::at_symbol, seq); \
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx))); \
+    }
+
+// Helper macro for three-argument Tier 1 wrappers
+#define TIER1_THREE_ARG(name, at_symbol) \
+    Gen giac_##name(const Gen& arg1, const Gen& arg2, const Gen& arg3) { \
+        initialize_giac_library(); \
+        giac::context& ctx = get_thread_local_context(); \
+        giac::vecteur args; \
+        args.push_back(arg1.impl_->g); \
+        args.push_back(arg2.impl_->g); \
+        args.push_back(arg3.impl_->g); \
+        giac::gen seq = giac::gen(args, giac::_SEQ__VECT); \
+        giac::gen expr = giac::symbolic(giac::at_symbol, seq); \
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx))); \
+    }
+
+// Trigonometry
+TIER1_SINGLE_ARG(sin, at_sin)
+TIER1_SINGLE_ARG(cos, at_cos)
+TIER1_SINGLE_ARG(tan, at_tan)
+TIER1_SINGLE_ARG(asin, at_asin)
+TIER1_SINGLE_ARG(acos, at_acos)
+TIER1_SINGLE_ARG(atan, at_atan)
+
+// Exponential / Logarithm
+TIER1_SINGLE_ARG(exp, at_exp)
+TIER1_SINGLE_ARG(ln, at_ln)
+TIER1_SINGLE_ARG(log10, at_log10)
+TIER1_SINGLE_ARG(sqrt, at_sqrt)
+
+// Arithmetic
+TIER1_SINGLE_ARG(abs, at_abs)
+TIER1_SINGLE_ARG(sign, at_sign)
+TIER1_SINGLE_ARG(floor, at_floor)
+TIER1_SINGLE_ARG(ceil, at_ceil)
+
+// Complex
+TIER1_SINGLE_ARG(re, at_re)
+TIER1_SINGLE_ARG(im, at_im)
+TIER1_SINGLE_ARG(conj, at_conj)
+
+// Algebra
+TIER1_SINGLE_ARG(normal, at_normal)
+TIER1_SINGLE_ARG(evalf, at_evalf)
+
+// Calculus (multi-argument) - note: differentiation uses at_derive
+TIER1_TWO_ARG(diff, at_derive)
+TIER1_TWO_ARG(integrate, at_integrate)
+TIER1_THREE_ARG(subst, at_subst)
+TIER1_TWO_ARG(solve, at_solve)
+TIER1_THREE_ARG(limit, at_limit)
+TIER1_THREE_ARG(series, at_series)
+
+// Arithmetic (multi-argument)
+TIER1_TWO_ARG(gcd, at_gcd)
+TIER1_TWO_ARG(lcm, at_lcm)
+
+// Power
+TIER1_TWO_ARG(pow, at_pow)
+
+#undef TIER1_SINGLE_ARG
+#undef TIER1_TWO_ARG
+#undef TIER1_THREE_ARG
+
+// ============================================================================
 // GiacContext Implementation
 // ============================================================================
 
@@ -231,6 +475,16 @@ Gen::Gen(const std::string& expr) : impl_(std::make_unique<GenImpl>()) {
     impl_->g = giac::gen(expr, &ctx);
 }
 
+Gen::Gen(int64_t value) : impl_(std::make_unique<GenImpl>()) {
+    initialize_giac_library();
+    impl_->g = giac::gen(static_cast<long long>(value));
+}
+
+Gen::Gen(double value) : impl_(std::make_unique<GenImpl>()) {
+    initialize_giac_library();
+    impl_->g = giac::gen(value);
+}
+
 Gen::~Gen() = default;
 
 Gen::Gen(const Gen& other) : impl_(std::make_unique<GenImpl>(other.impl_->g)) {}
@@ -256,6 +510,10 @@ int Gen::type() const {
     return impl_->g.type;
 }
 
+int32_t Gen::subtype() const {
+    return impl_->g.subtype;
+}
+
 std::string Gen::type_name() const {
     switch (impl_->g.type) {
         case giac::_INT_: return "integer";
@@ -270,8 +528,125 @@ std::string Gen::type_name() const {
         case giac::_FRAC: return "fraction";
         case giac::_STRNG: return "string";
         case giac::_FUNC: return "function";
+        case giac::_MAP: return "map";
         default: return "unknown";
     }
+}
+
+// ============================================================================
+// Typed Accessors
+// ============================================================================
+
+int64_t Gen::to_int64() const {
+    return static_cast<int64_t>(impl_->g.val);
+}
+
+int32_t Gen::to_int32() const {
+    return static_cast<int32_t>(impl_->g.val);
+}
+
+double Gen::to_double() const {
+    return impl_->g._DOUBLE_val;
+}
+
+std::string Gen::zint_to_string() const {
+    // Convert GMP big integer to string
+    giac::context& ctx = get_thread_local_context();
+    giac::gen bigint_gen = impl_->g;
+    return bigint_gen.print(&ctx);
+}
+
+Gen Gen::cplx_re() const {
+    return Gen(std::make_unique<GenImpl>(*impl_->g._CPLXptr));
+}
+
+Gen Gen::cplx_im() const {
+    return Gen(std::make_unique<GenImpl>(*(impl_->g._CPLXptr + 1)));
+}
+
+Gen Gen::frac_num() const {
+    return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->num));
+}
+
+Gen Gen::frac_den() const {
+    return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->den));
+}
+
+int32_t Gen::vect_size() const {
+    return static_cast<int32_t>(impl_->g._VECTptr->size());
+}
+
+Gen Gen::vect_at(int32_t i) const {
+    const giac::vecteur& v = *impl_->g._VECTptr;
+    if (i < 0 || static_cast<size_t>(i) >= v.size()) {
+        throw std::out_of_range("Vector index out of range");
+    }
+    return Gen(std::make_unique<GenImpl>(v[i]));
+}
+
+std::string Gen::symb_sommet_name() const {
+    giac::context& ctx = get_thread_local_context();
+    return impl_->g._SYMBptr->sommet.ptr()->print(&ctx);
+}
+
+Gen Gen::symb_feuille() const {
+    return Gen(std::make_unique<GenImpl>(impl_->g._SYMBptr->feuille));
+}
+
+std::string Gen::idnt_name() const {
+    giac::context& ctx = get_thread_local_context();
+    return impl_->g.print(&ctx);  // For identifiers, print gives the name
+}
+
+std::string Gen::strng_value() const {
+    return *impl_->g._STRNGptr;
+}
+
+int32_t Gen::map_size() const {
+    return static_cast<int32_t>(impl_->g._MAPptr->size());
+}
+
+Gen Gen::map_keys() const {
+    giac::vecteur keys;
+    for (const auto& pair : *impl_->g._MAPptr) {
+        keys.push_back(pair.first);
+    }
+    return Gen(std::make_unique<GenImpl>(giac::gen(keys)));
+}
+
+Gen Gen::map_values() const {
+    giac::vecteur values;
+    for (const auto& pair : *impl_->g._MAPptr) {
+        values.push_back(pair.second);
+    }
+    return Gen(std::make_unique<GenImpl>(giac::gen(values)));
+}
+
+// ============================================================================
+// Predicates
+// ============================================================================
+
+bool Gen::is_zero() const {
+    giac::context& ctx = get_thread_local_context();
+    return giac::is_zero(impl_->g, &ctx);
+}
+
+bool Gen::is_one() const {
+    // Check if value equals 1
+    if (impl_->g.type == giac::_INT_) {
+        return impl_->g.val == 1;
+    }
+    giac::context& ctx = get_thread_local_context();
+    return giac::is_zero(impl_->g - giac::gen(1), &ctx);
+}
+
+bool Gen::is_integer() const {
+    return impl_->g.type == giac::_INT_ || impl_->g.type == giac::_ZINT;
+}
+
+bool Gen::is_approx() const {
+    giac::context& ctx = get_thread_local_context();
+    return giac::has_evalf(impl_->g, impl_->g, 1, &ctx);
 }
 
 Gen Gen::eval() const {
