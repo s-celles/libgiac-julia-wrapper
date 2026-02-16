@@ -16,6 +16,55 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
 {
     using namespace giac_julia;
 
+    // ========================================================================
+    // Type Constants (EARS-CW-010–013)
+    // ========================================================================
+    // Note: Using flat constant names prefixed with type category
+    // Julia side will create module wrappers if needed
+
+    // GenType constants - gen type constants
+    mod.set_const("GENTYPE_INT", static_cast<int32_t>(0));      // _INT_
+    mod.set_const("GENTYPE_DOUBLE", static_cast<int32_t>(1));   // _DOUBLE_
+    mod.set_const("GENTYPE_ZINT", static_cast<int32_t>(2));     // _ZINT
+    mod.set_const("GENTYPE_REAL", static_cast<int32_t>(3));     // _REAL
+    mod.set_const("GENTYPE_CPLX", static_cast<int32_t>(4));     // _CPLX
+    mod.set_const("GENTYPE_POLY", static_cast<int32_t>(5));     // _POLY
+    mod.set_const("GENTYPE_IDNT", static_cast<int32_t>(6));     // _IDNT
+    mod.set_const("GENTYPE_VECT", static_cast<int32_t>(7));     // _VECT
+    mod.set_const("GENTYPE_SYMB", static_cast<int32_t>(8));     // _SYMB
+    mod.set_const("GENTYPE_SPOL1", static_cast<int32_t>(9));    // _SPOL1
+    mod.set_const("GENTYPE_FRAC", static_cast<int32_t>(10));    // _FRAC
+    mod.set_const("GENTYPE_EXT", static_cast<int32_t>(11));     // _EXT
+    mod.set_const("GENTYPE_STRNG", static_cast<int32_t>(12));   // _STRNG
+    mod.set_const("GENTYPE_FUNC", static_cast<int32_t>(13));    // _FUNC
+    mod.set_const("GENTYPE_MOD", static_cast<int32_t>(15));     // _MOD
+    mod.set_const("GENTYPE_USER", static_cast<int32_t>(16));    // _USER
+    mod.set_const("GENTYPE_MAP", static_cast<int32_t>(17));     // _MAP
+    mod.set_const("GENTYPE_FLOAT", static_cast<int32_t>(21));   // _FLOAT_
+
+    // VectSubtype constants
+    mod.set_const("VECTSUBTYPE_LIST", static_cast<int32_t>(0));
+    mod.set_const("VECTSUBTYPE_SEQ", static_cast<int32_t>(1));
+    mod.set_const("VECTSUBTYPE_SET", static_cast<int32_t>(2));
+    mod.set_const("VECTSUBTYPE_RPN", static_cast<int32_t>(4));
+    mod.set_const("VECTSUBTYPE_GROUP", static_cast<int32_t>(5));
+    mod.set_const("VECTSUBTYPE_LINE", static_cast<int32_t>(6));
+    mod.set_const("VECTSUBTYPE_VECTOR", static_cast<int32_t>(7));
+    mod.set_const("VECTSUBTYPE_PNT", static_cast<int32_t>(8));
+    mod.set_const("VECTSUBTYPE_POLY1", static_cast<int32_t>(10));
+    mod.set_const("VECTSUBTYPE_MATRIX", static_cast<int32_t>(11));
+    mod.set_const("VECTSUBTYPE_ASSUME", static_cast<int32_t>(13));
+    mod.set_const("VECTSUBTYPE_SPREAD", static_cast<int32_t>(14));
+    mod.set_const("VECTSUBTYPE_POINT", static_cast<int32_t>(20));
+
+    // IntSubtype constants
+    mod.set_const("INTSUBTYPE_INT", static_cast<int32_t>(0));
+    mod.set_const("INTSUBTYPE_TYPE", static_cast<int32_t>(1));
+    mod.set_const("INTSUBTYPE_CHAR", static_cast<int32_t>(2));
+    mod.set_const("INTSUBTYPE_COLOR", static_cast<int32_t>(5));
+    mod.set_const("INTSUBTYPE_BOOLEAN", static_cast<int32_t>(6));
+    mod.set_const("INTSUBTYPE_PLOT", static_cast<int32_t>(7));
+
     // Register version functions
     mod.method("giac_version", &get_giac_version);
     mod.method("wrapper_version", &get_wrapper_version);
@@ -45,13 +94,101 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     mod.add_type<Gen>("Gen")
         .constructor<>()
         .constructor<const std::string&>()
+        .constructor<int64_t>()
+        .constructor<double>()
+        // String conversion
         .method("to_string", &Gen::to_string)
+        // Type information
         .method("type", &Gen::type)
+        .method("subtype", &Gen::subtype)
         .method("type_name", &Gen::type_name)
-        .method("giac_eval", &Gen::eval)
+        // Typed accessors
+        .method("to_int64", &Gen::to_int64)
+        .method("to_int32", &Gen::to_int32)
+        .method("to_double", &Gen::to_double)
+        .method("zint_to_string", &Gen::zint_to_string)
+        .method("cplx_re", &Gen::cplx_re)
+        .method("cplx_im", &Gen::cplx_im)
+        .method("frac_num", &Gen::frac_num)
+        .method("frac_den", &Gen::frac_den)
+        .method("vect_size", &Gen::vect_size)
+        .method("vect_at", &Gen::vect_at)
+        .method("symb_sommet_name", &Gen::symb_sommet_name)
+        .method("symb_feuille", &Gen::symb_feuille)
+        .method("idnt_name", &Gen::idnt_name)
+        .method("strng_value", &Gen::strng_value)
+        .method("map_size", &Gen::map_size)
+        .method("map_keys", &Gen::map_keys)
+        .method("map_values", &Gen::map_values)
+        // Predicates
+        .method("is_zero", &Gen::is_zero)
+        .method("is_one", &Gen::is_one)
+        .method("is_integer", &Gen::is_integer)
+        .method("is_approx", &Gen::is_approx)
+        // Operations
+        .method("gen_eval", &Gen::eval)  // Renamed to avoid conflict with giac_eval
         .method("simplify", &Gen::simplify)
         .method("expand", &Gen::expand)
         .method("factor", &Gen::factor);
+
+    // Register giac_eval free function
+    mod.method("giac_eval", &giac_eval);
+
+    // Register generic dispatch functions
+    mod.method("apply_func", &apply_func);
+    mod.method("apply_func2", &apply_func2);
+    mod.method("apply_func3", &apply_func3);
+    // Note: apply_funcN not registered - use Julia dispatch for N>3 args
+
+    // Register function listing
+    mod.method("list_builtin_functions", &list_builtin_functions);
+    mod.method("builtin_function_count", &builtin_function_count);
+    mod.method("list_all_functions", &list_all_functions);
+
+    // Register Tier 1 direct wrappers (high-performance, no name lookup)
+    // Trigonometry
+    mod.method("giac_sin", &giac_sin);
+    mod.method("giac_cos", &giac_cos);
+    mod.method("giac_tan", &giac_tan);
+    mod.method("giac_asin", &giac_asin);
+    mod.method("giac_acos", &giac_acos);
+    mod.method("giac_atan", &giac_atan);
+
+    // Exponential / Logarithm
+    mod.method("giac_exp", &giac_exp);
+    mod.method("giac_ln", &giac_ln);
+    mod.method("giac_log10", &giac_log10);
+    mod.method("giac_sqrt", &giac_sqrt);
+
+    // Arithmetic
+    mod.method("giac_abs", &giac_abs);
+    mod.method("giac_sign", &giac_sign);
+    mod.method("giac_floor", &giac_floor);
+    mod.method("giac_ceil", &giac_ceil);
+
+    // Complex
+    mod.method("giac_re", &giac_re);
+    mod.method("giac_im", &giac_im);
+    mod.method("giac_conj", &giac_conj);
+
+    // Algebra
+    mod.method("giac_normal", &giac_normal);
+    mod.method("giac_evalf", &giac_evalf);
+
+    // Calculus (multi-argument)
+    mod.method("giac_diff", &giac_diff);
+    mod.method("giac_integrate", &giac_integrate);
+    mod.method("giac_subst", &giac_subst);
+    mod.method("giac_solve", &giac_solve);
+    mod.method("giac_limit", &giac_limit);
+    mod.method("giac_series", &giac_series);
+
+    // Arithmetic (multi-argument)
+    mod.method("giac_gcd", &giac_gcd);
+    mod.method("giac_lcm", &giac_lcm);
+
+    // Power
+    mod.method("giac_pow", &giac_pow);
 
     // Register Gen operators
     mod.set_override_module(jl_base_module);
@@ -62,5 +199,25 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     mod.method("-", [](const Gen& a) { return -a; });
     mod.method("==", [](const Gen& a, const Gen& b) { return a == b; });
     mod.method("!=", [](const Gen& a, const Gen& b) { return a != b; });
+
+    // Mixed-type operators: Gen × int64_t
+    mod.method("+", [](const Gen& a, int64_t b) { return a + Gen(b); });
+    mod.method("+", [](int64_t a, const Gen& b) { return Gen(a) + b; });
+    mod.method("-", [](const Gen& a, int64_t b) { return a - Gen(b); });
+    mod.method("-", [](int64_t a, const Gen& b) { return Gen(a) - b; });
+    mod.method("*", [](const Gen& a, int64_t b) { return a * Gen(b); });
+    mod.method("*", [](int64_t a, const Gen& b) { return Gen(a) * b; });
+    mod.method("/", [](const Gen& a, int64_t b) { return a / Gen(b); });
+    mod.method("/", [](int64_t a, const Gen& b) { return Gen(a) / b; });
+
+    // Mixed-type operators: Gen × double
+    mod.method("+", [](const Gen& a, double b) { return a + Gen(b); });
+    mod.method("+", [](double a, const Gen& b) { return Gen(a) + b; });
+    mod.method("-", [](const Gen& a, double b) { return a - Gen(b); });
+    mod.method("-", [](double a, const Gen& b) { return Gen(a) - b; });
+    mod.method("*", [](const Gen& a, double b) { return a * Gen(b); });
+    mod.method("*", [](double a, const Gen& b) { return Gen(a) * b; });
+    mod.method("/", [](const Gen& a, double b) { return a / Gen(b); });
+    mod.method("/", [](double a, const Gen& b) { return Gen(a) / b; });
     mod.unset_override_module();
 }
