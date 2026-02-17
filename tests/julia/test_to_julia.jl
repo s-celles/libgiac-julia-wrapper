@@ -78,7 +78,9 @@ Recursively convert a Giac Gen expression to native Julia types.
 - `_FRAC_` with integer parts → `Rational{Int64}`
 - `_FRAC_` with non-integer parts → quotient
 - `_CPLX_` → `Complex{T}`
-- `_VECT_` → `Vector{T}` with type narrowing
+- `_VECT_` (list) → `Vector{T}` with type narrowing
+- `_VECT_` (matrix, subtype=11) → `Matrix{T}`
+- `_VECT_` (set, subtype=2) → `Set{Any}`
 - `_STRNG_` → `String`
 - `_SYMB_`, `_IDNT_`, `_FUNC_` → unchanged (Gen)
 """
@@ -128,11 +130,25 @@ function to_julia(g::Gen)
 end
 
 """
-Internal: Convert vector Gen to Julia array with type narrowing
+Internal: Convert vector Gen to Julia array with type narrowing.
+Handles special subtypes: Matrix (11) and Set (2).
 """
 function _to_julia_vector(g::Gen)
     n = vect_size(g)
+    st = subtype(g)
 
+    # Handle Set subtype (T064)
+    if st == VECTSUBTYPE_SET
+        elements = [to_julia(g[i]) for i in 1:n]
+        return Set(elements)
+    end
+
+    # Handle Matrix subtype (T063)
+    if st == VECTSUBTYPE_MATRIX
+        return _to_julia_matrix(g)
+    end
+
+    # Default: regular vector/list
     # Collect elements
     elements = [to_julia(g[i]) for i in 1:n]
 
@@ -141,6 +157,61 @@ function _to_julia_vector(g::Gen)
 
     # Type narrowing using identity broadcast
     return _narrow_vector(elements)
+end
+
+"""
+Internal: Convert matrix Gen to Julia Matrix{T}.
+Assumes g is a vector of vectors (rows).
+"""
+function _to_julia_matrix(g::Gen)
+    nrows = vect_size(g)
+    nrows == 0 && return Matrix{Any}(undef, 0, 0)
+
+    # Get first row to determine number of columns
+    first_row = g[1]
+    if !is_vector(first_row)
+        # Single row case or malformed - fall back to vector
+        elements = [to_julia(g[i]) for i in 1:nrows]
+        return _narrow_vector(elements)
+    end
+
+    ncols = vect_size(first_row)
+
+    # Collect all elements row by row
+    rows = Vector{Vector{Any}}()
+    for i in 1:nrows
+        row = g[i]
+        if is_vector(row)
+            push!(rows, [to_julia(row[j]) for j in 1:vect_size(row)])
+        else
+            # Malformed matrix - fall back to vector
+            elements = [to_julia(g[k]) for k in 1:nrows]
+            return _narrow_vector(elements)
+        end
+    end
+
+    # Check all rows have same length
+    if !all(length(r) == ncols for r in rows)
+        # Jagged array - return as vector of vectors
+        return [_narrow_vector(r) for r in rows]
+    end
+
+    # Build matrix
+    # First narrow each row to get element types
+    narrowed_rows = [_narrow_vector(r) for r in rows]
+
+    # Determine common element type
+    T = promote_type([eltype(r) for r in narrowed_rows]...)
+
+    # Create and fill matrix
+    mat = Matrix{T}(undef, nrows, ncols)
+    for i in 1:nrows
+        for j in 1:ncols
+            mat[i, j] = narrowed_rows[i][j]
+        end
+    end
+
+    return mat
 end
 
 """
@@ -275,5 +346,69 @@ end
         result = to_julia(g)
         @test result isa Vector
         @test result == [1//2, 1//3, 1//4]
+    end
+
+    @testset "Matrix conversion (T063)" begin
+        # Explicit matrix with subtype VECTSUBTYPE_MATRIX
+        g = giac_eval("matrix(2,2,[1,2,3,4])")
+        result = to_julia(g)
+        @test result isa Matrix
+        @test size(result) == (2, 2)
+        @test result[1, 1] == 1
+        @test result[1, 2] == 2
+        @test result[2, 1] == 3
+        @test result[2, 2] == 4
+
+        # 3x3 matrix
+        g2 = giac_eval("matrix(3,3,[1,2,3,4,5,6,7,8,9])")
+        result2 = to_julia(g2)
+        @test result2 isa Matrix
+        @test size(result2) == (3, 3)
+        @test result2 == [1 2 3; 4 5 6; 7 8 9]
+
+        # Matrix with fractions
+        g3 = giac_eval("matrix(2,2,[1/2,1/3,1/4,1/5])")
+        result3 = to_julia(g3)
+        @test result3 isa Matrix
+        @test result3[1, 1] == 1//2
+        @test result3[2, 2] == 1//5
+    end
+
+    @testset "Set conversion (T064)" begin
+        # Basic set
+        g = giac_eval("set[1, 2, 3]")
+        result = to_julia(g)
+        @test result isa Set
+        @test 1 in result
+        @test 2 in result
+        @test 3 in result
+        @test length(result) == 3
+
+        # Set with duplicates (should be deduplicated by GIAC)
+        g2 = giac_eval("set[1, 2, 2, 3, 3, 3]")
+        result2 = to_julia(g2)
+        @test result2 isa Set
+        @test length(result2) == 3
+
+        # Empty set
+        g3 = giac_eval("set[]")
+        result3 = to_julia(g3)
+        @test result3 isa Set
+        @test isempty(result3)
+
+        # Set with mixed types
+        g4 = giac_eval("%{1, 2, 3%}")
+        result4 = to_julia(g4)
+        @test result4 isa Set
+        @test 1 in result4
+    end
+
+    @testset "Regular nested vector (not matrix)" begin
+        # Regular nested vector should still be Vector, not Matrix
+        g = giac_eval("[[1, 2], [3, 4]]")
+        result = to_julia(g)
+        @test result isa Vector  # Not Matrix, because subtype is LIST (0)
+        @test result[1] == [1, 2]
+        @test result[2] == [3, 4]
     end
 end
