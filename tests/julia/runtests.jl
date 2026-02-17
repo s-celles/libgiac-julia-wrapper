@@ -12,4 +12,5 @@ using Test
     include("test_indexing.jl")
     include("test_iteration.jl")
     include("test_to_julia.jl")
+    include("test_display.jl")
 end
