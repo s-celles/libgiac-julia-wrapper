@@ -15,4 +15,5 @@ using Test
     include("test_display.jl")
     include("test_symbolic.jl")
     include("test_highlevel.jl")
+    include("test_convert.jl")
 end
