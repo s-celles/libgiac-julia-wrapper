@@ -29,8 +29,20 @@ target_link_libraries(test_warnings PRIVATE giac_wrapper ${GIAC_LIBRARIES})
 target_include_directories(test_warnings PRIVATE ${CMAKE_SOURCE_DIR}/src ${GIAC_INCLUDE_DIRS})
 add_test(NAME TestWarnings COMMAND test_warnings)
 
+# Test for type predicates (Feature 004: REQ-C10..C17)
+add_executable(test_predicates test_predicates.cpp)
+target_link_libraries(test_predicates PRIVATE giac_wrapper ${GIAC_LIBRARIES})
+target_include_directories(test_predicates PRIVATE ${CMAKE_SOURCE_DIR}/src ${GIAC_INCLUDE_DIRS})
+add_test(NAME TestPredicates COMMAND test_predicates)
+
+# Test for value extraction (Feature 004: REQ-C20..C62)
+add_executable(test_extraction test_extraction.cpp)
+target_link_libraries(test_extraction PRIVATE giac_wrapper ${GIAC_LIBRARIES})
+target_include_directories(test_extraction PRIVATE ${CMAKE_SOURCE_DIR}/src ${GIAC_INCLUDE_DIRS})
+add_test(NAME TestExtraction COMMAND test_extraction)
+
 # Set test properties
-set_tests_properties(TestEval TestContext TestGen TestWarnings
+set_tests_properties(TestEval TestContext TestGen TestWarnings TestPredicates TestExtraction
     PROPERTIES
         TIMEOUT 60
         ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/src:$ENV{LD_LIBRARY_PATH}"

@@ -8,4 +8,8 @@ using Test
     include("test_context.jl")
     include("test_gen.jl")
     include("test_warnings.jl")
+    include("test_introspection.jl")
+    include("test_indexing.jl")
+    include("test_iteration.jl")
+    include("test_to_julia.jl")
 end
