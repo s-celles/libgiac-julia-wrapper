@@ -13,4 +13,5 @@ using Test
     include("test_iteration.jl")
     include("test_to_julia.jl")
     include("test_display.jl")
+    include("test_symbolic.jl")
 end
