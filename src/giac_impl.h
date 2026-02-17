@@ -263,6 +263,15 @@ public:
     bool is_integer() const;
     bool is_approx() const;
 
+    // Type predicates (Feature 004: REQ-C10..C17)
+    bool is_numeric() const;      // REQ-C11: _INT_, _DOUBLE_, _ZINT_, or _REAL_
+    bool is_vector() const;       // REQ-C12: _VECT_
+    bool is_symbolic() const;     // REQ-C13: _SYMB_
+    bool is_identifier() const;   // REQ-C14: _IDNT_
+    bool is_fraction() const;     // REQ-C15: _FRAC_
+    bool is_complex() const;      // REQ-C16: _CPLX_
+    bool is_string() const;       // REQ-C17: _STRNG_
+
     // Operations
     Gen eval() const;
     Gen simplify() const;

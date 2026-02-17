@@ -538,15 +538,30 @@ std::string Gen::type_name() const {
 // ============================================================================
 
 int64_t Gen::to_int64() const {
+    // REQ-C21: Throws if not an integer type
+    if (impl_->g.type != giac::_INT_) {
+        throw std::runtime_error("gen is not an integer");
+    }
     return static_cast<int64_t>(impl_->g.val);
 }
 
 int32_t Gen::to_int32() const {
+    // REQ-C21: Throws if not an integer type
+    if (impl_->g.type != giac::_INT_) {
+        throw std::runtime_error("gen is not an integer");
+    }
     return static_cast<int32_t>(impl_->g.val);
 }
 
 double Gen::to_double() const {
-    return impl_->g._DOUBLE_val;
+    // REQ-C22, C23, C24: Returns double for _INT_ or _DOUBLE_, throws otherwise
+    if (impl_->g.type == giac::_DOUBLE_) {
+        return impl_->g._DOUBLE_val;
+    } else if (impl_->g.type == giac::_INT_) {
+        return static_cast<double>(impl_->g.val);
+    } else {
+        throw std::runtime_error("gen is not a numeric type");
+    }
 }
 
 std::string Gen::zint_to_string() const {
@@ -557,39 +572,86 @@ std::string Gen::zint_to_string() const {
 }
 
 Gen Gen::cplx_re() const {
-    return Gen(std::make_unique<GenImpl>(*impl_->g._CPLXptr));
+    // REQ-C50, C51: Returns real part for _CPLX_, self for non-complex
+    if (impl_->g.type == giac::_CPLX) {
+        return Gen(std::make_unique<GenImpl>(*impl_->g._CPLXptr));
+    } else {
+        // REQ-C51: Return self for non-complex
+        return Gen(std::make_unique<GenImpl>(impl_->g));
+    }
 }
 
 Gen Gen::cplx_im() const {
-    return Gen(std::make_unique<GenImpl>(*(impl_->g._CPLXptr + 1)));
+    // REQ-C52, C53: Returns imaginary part for _CPLX_, 0 for non-complex
+    if (impl_->g.type == giac::_CPLX) {
+        return Gen(std::make_unique<GenImpl>(*(impl_->g._CPLXptr + 1)));
+    } else {
+        // REQ-C53: Return 0 for non-complex
+        return Gen(std::make_unique<GenImpl>(giac::gen(0)));
+    }
 }
 
 Gen Gen::frac_num() const {
-    return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->num));
+    // REQ-C40, C41, C44: Returns numerator for _FRAC_, self for _INT_/_ZINT_, throws otherwise
+    int t = impl_->g.type;
+    if (t == giac::_FRAC) {
+        return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->num));
+    } else if (t == giac::_INT_ || t == giac::_ZINT) {
+        // REQ-C41: Return self for integers
+        return Gen(std::make_unique<GenImpl>(impl_->g));
+    } else {
+        throw std::runtime_error("gen is not a fraction or integer");
+    }
 }
 
 Gen Gen::frac_den() const {
-    return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->den));
+    // REQ-C42, C43, C44: Returns denominator for _FRAC_, 1 for _INT_/_ZINT_, throws otherwise
+    int t = impl_->g.type;
+    if (t == giac::_FRAC) {
+        return Gen(std::make_unique<GenImpl>(impl_->g._FRACptr->den));
+    } else if (t == giac::_INT_ || t == giac::_ZINT) {
+        // REQ-C43: Return 1 for integers
+        return Gen(std::make_unique<GenImpl>(giac::gen(1)));
+    } else {
+        throw std::runtime_error("gen is not a fraction or integer");
+    }
 }
 
 int32_t Gen::vect_size() const {
+    // REQ-C31: Throws if not a vector type
+    if (impl_->g.type != giac::_VECT) {
+        throw std::runtime_error("gen is not a vector");
+    }
     return static_cast<int32_t>(impl_->g._VECTptr->size());
 }
 
 Gen Gen::vect_at(int32_t i) const {
+    // REQ-C34: Throws if not a vector type
+    if (impl_->g.type != giac::_VECT) {
+        throw std::runtime_error("gen is not a vector");
+    }
     const giac::vecteur& v = *impl_->g._VECTptr;
+    // REQ-C33: Throws if index out of bounds
     if (i < 0 || static_cast<size_t>(i) >= v.size()) {
-        throw std::out_of_range("Vector index out of range");
+        throw std::runtime_error("index out of bounds");
     }
     return Gen(std::make_unique<GenImpl>(v[i]));
 }
 
 std::string Gen::symb_sommet_name() const {
+    // REQ-C60, C62: Returns function name for _SYMB_, throws otherwise
+    if (impl_->g.type != giac::_SYMB) {
+        throw std::runtime_error("gen is not symbolic");
+    }
     giac::context& ctx = get_thread_local_context();
     return impl_->g._SYMBptr->sommet.ptr()->print(&ctx);
 }
 
 Gen Gen::symb_feuille() const {
+    // REQ-C61, C62: Returns argument for _SYMB_, throws otherwise
+    if (impl_->g.type != giac::_SYMB) {
+        throw std::runtime_error("gen is not symbolic");
+    }
     return Gen(std::make_unique<GenImpl>(impl_->g._SYMBptr->feuille));
 }
 
@@ -647,6 +709,47 @@ bool Gen::is_integer() const {
 bool Gen::is_approx() const {
     giac::context& ctx = get_thread_local_context();
     return giac::has_evalf(impl_->g, impl_->g, 1, &ctx);
+}
+
+// ============================================================================
+// Type Predicates (Feature 004: REQ-C10..C17)
+// ============================================================================
+
+bool Gen::is_numeric() const {
+    // REQ-C11: true iff type is _INT_, _DOUBLE_, _ZINT_, or _REAL_
+    int t = impl_->g.type;
+    return t == giac::_INT_ || t == giac::_DOUBLE_ ||
+           t == giac::_ZINT || t == giac::_REAL;
+}
+
+bool Gen::is_vector() const {
+    // REQ-C12: true iff type is _VECT_
+    return impl_->g.type == giac::_VECT;
+}
+
+bool Gen::is_symbolic() const {
+    // REQ-C13: true iff type is _SYMB_
+    return impl_->g.type == giac::_SYMB;
+}
+
+bool Gen::is_identifier() const {
+    // REQ-C14: true iff type is _IDNT_
+    return impl_->g.type == giac::_IDNT;
+}
+
+bool Gen::is_fraction() const {
+    // REQ-C15: true iff type is _FRAC_
+    return impl_->g.type == giac::_FRAC;
+}
+
+bool Gen::is_complex() const {
+    // REQ-C16: true iff type is _CPLX_
+    return impl_->g.type == giac::_CPLX;
+}
+
+bool Gen::is_string() const {
+    // REQ-C17: true iff type is _STRNG_
+    return impl_->g.type == giac::_STRNG;
 }
 
 Gen Gen::eval() const {

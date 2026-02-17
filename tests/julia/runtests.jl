@@ -8,4 +8,12 @@ using Test
     include("test_context.jl")
     include("test_gen.jl")
     include("test_warnings.jl")
+    include("test_introspection.jl")
+    include("test_indexing.jl")
+    include("test_iteration.jl")
+    include("test_to_julia.jl")
+    include("test_display.jl")
+    include("test_symbolic.jl")
+    include("test_highlevel.jl")
+    include("test_convert.jl")
 end
