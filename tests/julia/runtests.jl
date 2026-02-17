@@ -14,4 +14,5 @@ using Test
     include("test_to_julia.jl")
     include("test_display.jl")
     include("test_symbolic.jl")
+    include("test_highlevel.jl")
 end
