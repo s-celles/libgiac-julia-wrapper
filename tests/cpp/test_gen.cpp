@@ -75,21 +75,21 @@ TEST(giac_eval_matrix) {
 // T-032: Test apply_func single argument
 TEST(apply_func_single) {
     Gen n(static_cast<int64_t>(120));
-    Gen result = apply_func("ifactor", n);
+    Gen result = apply_func1("ifactor", n);
     std::string s = result.to_string();
     // ifactor(120) = 2^3*3*5
     assert(s.find("2") != std::string::npos);
     assert(s.find("3") != std::string::npos);
     assert(s.find("5") != std::string::npos);
-    std::cout << "apply_func(\"ifactor\", 120) = " << s << " ";
+    std::cout << "apply_func1(\"ifactor\", 120) = " << s << " ";
 }
 
 TEST(apply_func_sin) {
     Gen x = giac_eval("x");
-    Gen result = apply_func("sin", x);
+    Gen result = apply_func1("sin", x);
     std::string s = result.to_string();
     assert(s.find("sin") != std::string::npos);
-    std::cout << "apply_func(\"sin\", x) = " << s << " ";
+    std::cout << "apply_func1(\"sin\", x) = " << s << " ";
 }
 
 // Test apply_func2 (two arguments)
@@ -105,11 +105,11 @@ TEST(apply_func2_diff) {
 
 TEST(apply_func2_det) {
     Gen matrix = giac_eval("[[1,2],[3,4]]");
-    Gen result = apply_func("det", matrix);
+    Gen result = apply_func1("det", matrix);
     std::string s = result.to_string();
     // det([[1,2],[3,4]]) = -2
     assert(s == "-2");
-    std::cout << "apply_func(\"det\", matrix) = " << s << " ";
+    std::cout << "apply_func1(\"det\", matrix) = " << s << " ";
 }
 
 // T-033: Test function listing

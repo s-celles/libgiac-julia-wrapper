@@ -56,13 +56,20 @@ Gen giac_eval(const std::string& expr);
 // ============================================================================
 
 /**
+ * @brief Apply a Giac function by name with zero arguments
+ * @param name Function name (e.g., "rand")
+ * @return Result of function application
+ */
+Gen apply_func0(const std::string& name);
+
+/**
  * @brief Apply a Giac function by name to a single argument
  * @param name Function name (e.g., "ifactor", "sin")
  * @param arg Argument Gen
  * @return Result of function application
  * @note Uses gen(name, &ctx) lookup; falls back to string eval if not _FUNC
  */
-Gen apply_func(const std::string& name, const Gen& arg);
+Gen apply_func1(const std::string& name, const Gen& arg);
 
 /**
  * @brief Apply a Giac function by name to two arguments
@@ -299,7 +306,8 @@ private:
 
     // Friend functions that need access to private constructor
     friend Gen giac_eval(const std::string& expr);
-    friend Gen apply_func(const std::string& name, const Gen& arg);
+    friend Gen apply_func0(const std::string& name);
+    friend Gen apply_func1(const std::string& name, const Gen& arg);
     friend Gen apply_func2(const std::string& name, const Gen& arg1, const Gen& arg2);
     friend Gen apply_func3(const std::string& name, const Gen& arg1, const Gen& arg2, const Gen& arg3);
     friend Gen apply_funcN(const std::string& name, const std::vector<Gen>& args);

@@ -164,7 +164,24 @@ Gen giac_eval(const std::string& expr) {
 // Generic Dispatch Implementation
 // ============================================================================
 
-Gen apply_func(const std::string& name, const Gen& arg) {
+Gen apply_func0(const std::string& name) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+    giac::gen func_gen(name, &ctx);
+
+    if (func_gen.type == giac::_FUNC) {
+        // Direct symbolic construction with no arguments
+        giac::gen expr = giac::symbolic(*func_gen._FUNCptr, giac::gen(giac::vecteur(), giac::_SEQ__VECT));
+        return Gen(std::make_unique<GenImpl>(giac::eval(expr, &ctx)));
+    } else {
+        // Fallback: string-based evaluation
+        std::string expr_str = name + "()";
+        giac::gen parsed(expr_str, &ctx);
+        return Gen(std::make_unique<GenImpl>(giac::eval(parsed, &ctx)));
+    }
+}
+
+Gen apply_func1(const std::string& name, const Gen& arg) {
     initialize_giac_library();
     giac::context& ctx = get_thread_local_context();
     giac::gen func_gen(name, &ctx);

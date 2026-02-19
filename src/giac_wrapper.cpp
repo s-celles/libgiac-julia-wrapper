@@ -142,13 +142,11 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     // Register giac_eval free function
     mod.method("giac_eval", &giac_eval);
 
-    // Register generic dispatch functions
-    mod.method("apply_func", &apply_func);
+    // Register generic dispatch functions (Tier 2)
+    mod.method("apply_func0", &apply_func0);
+    mod.method("apply_func1", &apply_func1);
     mod.method("apply_func2", &apply_func2);
     mod.method("apply_func3", &apply_func3);
-
-    // Register apply_funcN for N-ary function dispatch (N > 3)
-    // CxxWrap automatically handles std::vector<Gen> when used as parameter
     mod.method("apply_funcN", &apply_funcN);
 
     // Register function listing
