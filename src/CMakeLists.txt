@@ -45,6 +45,7 @@ target_include_directories(giac_wrapper
 target_link_libraries(giac_wrapper
     PUBLIC
         JlCxx::cxxwrap_julia
+        JlCxx::cxxwrap_julia_stl  # Required for std::vector<Gen> in apply_funcN
     PRIVATE
         ${GIAC_LIBRARIES}
 )

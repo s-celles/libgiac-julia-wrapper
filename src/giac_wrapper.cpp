@@ -146,7 +146,10 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     mod.method("apply_func", &apply_func);
     mod.method("apply_func2", &apply_func2);
     mod.method("apply_func3", &apply_func3);
-    // Note: apply_funcN not registered - use Julia dispatch for N>3 args
+
+    // Register apply_funcN for N-ary function dispatch (N > 3)
+    // CxxWrap automatically handles std::vector<Gen> when used as parameter
+    mod.method("apply_funcN", &apply_funcN);
 
     // Register function listing
     mod.method("list_builtin_functions", &list_builtin_functions);
