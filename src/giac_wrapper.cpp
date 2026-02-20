@@ -219,6 +219,11 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     mod.method("gen_ptr_to_string", &gen_ptr_to_string);
     mod.method("gen_ptr_type", &gen_ptr_type);
 
+    // ========================================================================
+    // Gen Pointer Reconstruction (Feature 052: Direct to_symbolics)
+    // ========================================================================
+    mod.method("gen_from_heap_ptr", &gen_from_heap_ptr);
+
     // Register Gen operators
     mod.set_override_module(jl_base_module);
     mod.method("+", [](const Gen& a, const Gen& b) { return a + b; });

@@ -1001,4 +1001,17 @@ int gen_ptr_type(void* ptr) {
     return static_cast<int>(g->type);
 }
 
+// ============================================================================
+// Gen Pointer Reconstruction (Feature 052: Direct to_symbolics)
+// ============================================================================
+
+Gen gen_from_heap_ptr(void* ptr) {
+    if (ptr == nullptr) {
+        throw std::runtime_error("Cannot create Gen from null pointer");
+    }
+    giac::gen* g = static_cast<giac::gen*>(ptr);
+    // Create a COPY of the giac::gen, leaving original unchanged
+    return Gen(std::make_unique<GenImpl>(*g));
+}
+
 } // namespace giac_julia

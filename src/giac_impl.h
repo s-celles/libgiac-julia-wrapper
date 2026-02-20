@@ -243,6 +243,15 @@ std::string gen_ptr_to_string(void* ptr);
  */
 int gen_ptr_type(void* ptr);
 
+/**
+ * @brief Reconstruct a Gen from a heap pointer (Feature 052: Direct to_symbolics)
+ * @param ptr Pointer to heap-allocated giac::gen (from gen_to_heap_ptr or _giac_eval_string)
+ * @return Gen object containing a COPY of the pointed-to giac::gen
+ * @throws std::runtime_error if ptr is null
+ * @note Non-destructive: original pointer remains valid and unchanged
+ */
+Gen gen_from_heap_ptr(void* ptr);
+
 // ============================================================================
 // GiacContext - Opaque wrapper around giac::context
 // ============================================================================
@@ -441,6 +450,9 @@ private:
 
     // Gen pointer management (Feature 051: direct to_giac)
     friend void* gen_to_heap_ptr(const Gen& gen);
+
+    // Gen pointer reconstruction (Feature 052: direct to_symbolics)
+    friend Gen gen_from_heap_ptr(void* ptr);
 };
 
 } // namespace giac_julia
