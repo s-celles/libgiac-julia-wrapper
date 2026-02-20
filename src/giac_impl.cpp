@@ -588,6 +588,36 @@ std::string Gen::zint_to_string() const {
     return bigint_gen.print(&ctx);
 }
 
+int Gen::zint_sign() const {
+    // Return sign of ZINT: -1 (negative), 0 (zero), 1 (positive)
+    if (impl_->g.type != giac::_ZINT) {
+        throw std::runtime_error("gen is not a ZINT");
+    }
+    return mpz_sgn(*impl_->g._ZINTptr);
+}
+
+std::vector<uint8_t> Gen::zint_to_bytes() const {
+    // Export ZINT as big-endian byte array (absolute value only)
+    // Sign must be obtained separately via zint_sign()
+    if (impl_->g.type != giac::_ZINT) {
+        throw std::runtime_error("gen is not a ZINT");
+    }
+
+    mpz_t* z = impl_->g._ZINTptr;
+    if (mpz_sgn(*z) == 0) {
+        return {};  // Empty vector for zero
+    }
+
+    size_t count;
+    // mpz_export(rop, countp, order=1 (MSB first), size=1 (byte), endian=1 (big), nails=0, op)
+    void* data = mpz_export(NULL, &count, 1, 1, 1, 0, *z);
+
+    std::vector<uint8_t> result(static_cast<uint8_t*>(data),
+                                 static_cast<uint8_t*>(data) + count);
+    free(data);  // mpz_export allocates with malloc when rop is NULL
+    return result;
+}
+
 Gen Gen::cplx_re() const {
     // REQ-C50, C51: Returns real part for _CPLX_, self for non-complex
     if (impl_->g.type == giac::_CPLX) {

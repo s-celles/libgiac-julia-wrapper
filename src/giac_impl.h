@@ -236,6 +236,8 @@ public:
 
     // _ZINT type (big integers)
     std::string zint_to_string() const;
+    int zint_sign() const;
+    std::vector<uint8_t> zint_to_bytes() const;
 
     // _CPLX type
     Gen cplx_re() const;
