@@ -14,6 +14,7 @@
 #include <input_lexer.h>
 #include <algorithm>
 #include <set>
+#include <limits>
 
 #include "giac_impl.h"
 #include <mutex>
@@ -494,7 +495,14 @@ Gen::Gen(const std::string& expr) : impl_(std::make_unique<GenImpl>()) {
 
 Gen::Gen(int64_t value) : impl_(std::make_unique<GenImpl>()) {
     initialize_giac_library();
-    impl_->g = giac::gen(static_cast<long long>(value));
+    // Use int constructor for values that fit in int to preserve _INT_ type
+    // GIAC's gen(int) creates type _INT_, while gen(longlong) may create _DOUBLE_
+    if (value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max()) {
+        impl_->g = giac::gen(static_cast<int>(value));
+    } else {
+        // For larger values, use longlong (may become ZINT or DOUBLE depending on GIAC)
+        impl_->g = giac::gen(static_cast<long long>(value));
+    }
 }
 
 Gen::Gen(double value) : impl_(std::make_unique<GenImpl>()) {
@@ -856,6 +864,141 @@ void* Gen::get_impl() const {
 Gen Gen::from_impl(void* impl) {
     auto* genImpl = static_cast<GenImpl*>(impl);
     return Gen(std::make_unique<GenImpl>(genImpl->g));
+}
+
+// ============================================================================
+// Gen Construction Functions (Feature 051: Direct to_giac)
+// ============================================================================
+
+Gen make_identifier(const std::string& name) {
+    initialize_giac_library();
+    // Create an identifier using giac::identificateur
+    giac::gen idnt = giac::identificateur(name);
+    return Gen(std::make_unique<GenImpl>(idnt));
+}
+
+Gen make_zint_from_bytes(const std::vector<uint8_t>& bytes, int32_t sign) {
+    initialize_giac_library();
+
+    if (bytes.empty() || sign == 0) {
+        return Gen(std::make_unique<GenImpl>(giac::gen(0)));
+    }
+
+    mpz_t z;
+    mpz_init(z);
+
+    // mpz_import(rop, count, order=1 (MSB first), size=1 (byte), endian=1 (big), nails=0, op)
+    mpz_import(z, bytes.size(), 1, 1, 1, 0, bytes.data());
+
+    if (sign < 0) {
+        mpz_neg(z, z);
+    }
+
+    giac::gen result(z);
+    mpz_clear(z);
+
+    return Gen(std::make_unique<GenImpl>(result));
+}
+
+Gen make_symbolic_unevaluated(const std::string& op_name, const std::vector<Gen>& args) {
+    initialize_giac_library();
+    giac::context& ctx = get_thread_local_context();
+
+    // Get the function pointer
+    const giac::unary_function_ptr* func_ptr = nullptr;
+
+    // Handle special operators that are not in the function lookup table
+    if (op_name == "+") {
+        func_ptr = giac::at_plus;
+    } else if (op_name == "-") {
+        func_ptr = giac::at_neg;  // For unary minus; binary minus is handled as + with negated arg
+    } else if (op_name == "*") {
+        func_ptr = giac::at_prod;
+    } else if (op_name == "/") {
+        func_ptr = giac::at_division;
+    } else if (op_name == "^") {
+        func_ptr = giac::at_pow;
+    } else {
+        // Lookup function by name
+        giac::gen func_gen(op_name, &ctx);
+
+        if (func_gen.type != giac::_FUNC) {
+            throw std::runtime_error("Unknown function or operator: " + op_name);
+        }
+        func_ptr = func_gen._FUNCptr;
+    }
+
+    // Handle single argument vs multiple arguments
+    if (args.size() == 1) {
+        // Single argument - pass directly
+        giac::gen expr = giac::symbolic(*func_ptr, args[0].impl_->g);
+        return Gen(std::make_unique<GenImpl>(expr));
+    } else {
+        // Multiple arguments - create sequence
+        giac::vecteur giac_args;
+        for (const auto& arg : args) {
+            giac_args.push_back(arg.impl_->g);
+        }
+        giac::gen seq = giac::gen(giac_args, giac::_SEQ__VECT);
+        giac::gen expr = giac::symbolic(*func_ptr, seq);
+        return Gen(std::make_unique<GenImpl>(expr));
+    }
+}
+
+Gen make_complex(const Gen& re, const Gen& im) {
+    initialize_giac_library();
+    // GIAC constructor for complex: gen(re, im) creates _CPLX type
+    giac::gen result(re.impl_->g, im.impl_->g);
+    return Gen(std::make_unique<GenImpl>(result));
+}
+
+Gen make_fraction(const Gen& num, const Gen& den) {
+    initialize_giac_library();
+    // Create fraction using GIAC's fraction type
+    giac::gen result = giac::fraction(num.impl_->g, den.impl_->g);
+    return Gen(std::make_unique<GenImpl>(result));
+}
+
+Gen make_vect(const std::vector<Gen>& elements, int32_t subtype) {
+    initialize_giac_library();
+    // Create vector with specified subtype
+    giac::vecteur v;
+    for (const auto& elem : elements) {
+        v.push_back(elem.impl_->g);
+    }
+    giac::gen result(v, static_cast<short>(subtype));
+    return Gen(std::make_unique<GenImpl>(result));
+}
+
+// ============================================================================
+// Gen Pointer Management (Feature 051: Direct to_giac without strings)
+// ============================================================================
+
+void* gen_to_heap_ptr(const Gen& gen) {
+    // Allocate a new giac::gen on the heap, copy from Gen's internal impl
+    return new giac::gen(gen.impl_->g);
+}
+
+void free_gen_ptr(void* ptr) {
+    if (ptr != nullptr) {
+        delete static_cast<giac::gen*>(ptr);
+    }
+}
+
+std::string gen_ptr_to_string(void* ptr) {
+    if (ptr == nullptr) {
+        return "<null>";
+    }
+    giac::gen* g = static_cast<giac::gen*>(ptr);
+    return g->print(nullptr);
+}
+
+int gen_ptr_type(void* ptr) {
+    if (ptr == nullptr) {
+        return -1;
+    }
+    giac::gen* g = static_cast<giac::gen*>(ptr);
+    return static_cast<int>(g->type);
 }
 
 } // namespace giac_julia

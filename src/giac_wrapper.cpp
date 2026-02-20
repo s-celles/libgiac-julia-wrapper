@@ -201,6 +201,24 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
     // Power
     mod.method("giac_pow", &giac_pow);
 
+    // ========================================================================
+    // Gen Construction Functions (Feature 051: Direct to_giac)
+    // ========================================================================
+    mod.method("make_identifier", &make_identifier);
+    mod.method("make_zint_from_bytes", &make_zint_from_bytes);
+    mod.method("make_symbolic_unevaluated", &make_symbolic_unevaluated);
+    mod.method("make_complex", &make_complex);
+    mod.method("make_fraction", &make_fraction);
+    mod.method("make_vect", &make_vect);
+
+    // ========================================================================
+    // Gen Pointer Management (Feature 051: Direct to_giac without strings)
+    // ========================================================================
+    mod.method("gen_to_heap_ptr", &gen_to_heap_ptr);
+    mod.method("free_gen_ptr", &free_gen_ptr);
+    mod.method("gen_ptr_to_string", &gen_ptr_to_string);
+    mod.method("gen_ptr_type", &gen_ptr_type);
+
     // Register Gen operators
     mod.set_override_module(jl_base_module);
     mod.method("+", [](const Gen& a, const Gen& b) { return a + b; });

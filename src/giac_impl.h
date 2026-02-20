@@ -159,6 +159,91 @@ Gen giac_lcm(const Gen& a, const Gen& b);
 Gen giac_pow(const Gen& base, const Gen& exp);
 
 // ============================================================================
+// Gen Construction Functions (Feature 051: Direct to_giac)
+// ============================================================================
+
+/**
+ * @brief Create an identifier (symbolic variable) from a name
+ * @param name Variable name (e.g., "x", "alpha")
+ * @return Gen of type _IDNT
+ */
+Gen make_identifier(const std::string& name);
+
+/**
+ * @brief Create a big integer (ZINT) from raw bytes
+ * @param bytes Big-endian byte array (absolute value)
+ * @param sign Sign: -1 (negative), 0 (zero), 1 (positive)
+ * @return Gen of type _ZINT (or _INT_ if small enough)
+ * @note Reverse of zint_to_bytes() / zint_sign()
+ */
+Gen make_zint_from_bytes(const std::vector<uint8_t>& bytes, int32_t sign);
+
+/**
+ * @brief Create an unevaluated symbolic expression
+ * @param op_name Operator/function name (e.g., "+", "sin")
+ * @param args Vector of argument Gen objects
+ * @return Gen of type _SYMB (unevaluated)
+ * @note Unlike apply_funcN, does NOT evaluate the result
+ */
+Gen make_symbolic_unevaluated(const std::string& op_name, const std::vector<Gen>& args);
+
+/**
+ * @brief Create a complex number from real and imaginary parts
+ * @param re Real part Gen
+ * @param im Imaginary part Gen
+ * @return Gen of type _CPLX
+ */
+Gen make_complex(const Gen& re, const Gen& im);
+
+/**
+ * @brief Create a fraction from numerator and denominator
+ * @param num Numerator Gen
+ * @param den Denominator Gen
+ * @return Gen of type _FRAC
+ */
+Gen make_fraction(const Gen& num, const Gen& den);
+
+/**
+ * @brief Create a vector/sequence from elements
+ * @param elements Vector of Gen elements
+ * @param subtype Vector subtype (0=list, 1=seq, 2=set, 11=matrix, etc.)
+ * @return Gen of type _VECT with specified subtype
+ */
+Gen make_vect(const std::vector<Gen>& elements, int32_t subtype);
+
+// ============================================================================
+// Gen Pointer Management (Feature 051: Direct to_giac without strings)
+// ============================================================================
+
+/**
+ * @brief Allocate a copy of a Gen on the heap
+ * @param gen Source Gen to copy
+ * @return Opaque pointer to heap-allocated Gen (caller owns)
+ * @note Use free_gen_ptr() to deallocate
+ */
+void* gen_to_heap_ptr(const Gen& gen);
+
+/**
+ * @brief Free a heap-allocated Gen
+ * @param ptr Pointer returned by gen_to_heap_ptr()
+ */
+void free_gen_ptr(void* ptr);
+
+/**
+ * @brief Get string representation of a heap Gen
+ * @param ptr Pointer returned by gen_to_heap_ptr()
+ * @return String representation
+ */
+std::string gen_ptr_to_string(void* ptr);
+
+/**
+ * @brief Get type of a heap Gen
+ * @param ptr Pointer returned by gen_to_heap_ptr()
+ * @return Gen type code
+ */
+int gen_ptr_type(void* ptr);
+
+// ============================================================================
 // GiacContext - Opaque wrapper around giac::context
 // ============================================================================
 
@@ -345,6 +430,17 @@ private:
     friend Gen giac_gcd(const Gen& a, const Gen& b);
     friend Gen giac_lcm(const Gen& a, const Gen& b);
     friend Gen giac_pow(const Gen& base, const Gen& exp);
+
+    // Gen construction functions (Feature 051)
+    friend Gen make_identifier(const std::string& name);
+    friend Gen make_zint_from_bytes(const std::vector<uint8_t>& bytes, int32_t sign);
+    friend Gen make_symbolic_unevaluated(const std::string& op_name, const std::vector<Gen>& args);
+    friend Gen make_complex(const Gen& re, const Gen& im);
+    friend Gen make_fraction(const Gen& num, const Gen& den);
+    friend Gen make_vect(const std::vector<Gen>& elements, int32_t subtype);
+
+    // Gen pointer management (Feature 051: direct to_giac)
+    friend void* gen_to_heap_ptr(const Gen& gen);
 };
 
 } // namespace giac_julia
