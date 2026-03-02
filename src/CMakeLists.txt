@@ -25,7 +25,13 @@ if(USE_GIAC_CABI)
         message(FATAL_ERROR "USE_GIAC_CABI=ON requires GIAC_CABI_LIBRARY to be set")
     endif()
 
-    # Link the pre-built C-ABI static library and libstdc++ (for g++-compiled symbols)
+    # GCC_LIB_DIR: path to g++'s runtime libraries (libstdc++, libgcc)
+    # Required so clang++ linker can find them
+    if(GCC_LIB_DIR)
+        link_directories(${GCC_LIB_DIR})
+    endif()
+
+    # Link the pre-built C-ABI static library and GCC runtime libraries
     target_link_libraries(giac_wrapper
         PUBLIC
             JlCxx::cxxwrap_julia
@@ -34,6 +40,7 @@ if(USE_GIAC_CABI)
             ${GIAC_CABI_LIBRARY}
             ${GIAC_LIBRARIES}
             stdc++
+            gcc
     )
 else()
     # Standard mode: both files compiled with the same compiler
