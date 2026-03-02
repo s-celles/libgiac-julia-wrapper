@@ -75,18 +75,43 @@ find_path(GMP_INCLUDE_DIR
     PATH_SUFFIXES include
 )
 
+# Find GMP library (required for direct mpz_* calls in ZINT handling)
+find_library(GMP_LIBRARY
+    NAMES gmp
+    HINTS
+        ${PC_GIAC_LIBDIR}
+        ${PC_GIAC_LIBRARY_DIRS}
+        ENV GIAC_ROOT
+        ENV CONDA_PREFIX
+        /usr/lib
+        /usr/lib64
+        /usr/local/lib
+        /usr/local/lib64
+        /opt/local/lib
+        /opt/homebrew/lib
+    PATH_SUFFIXES lib lib64
+)
+
 # Set output variables
 set(GIAC_INCLUDE_DIRS ${GIAC_INCLUDE_DIR})
 if(GMP_INCLUDE_DIR AND NOT "${GMP_INCLUDE_DIR}" STREQUAL "${GIAC_INCLUDE_DIR}")
     list(APPEND GIAC_INCLUDE_DIRS ${GMP_INCLUDE_DIR})
 endif()
 set(GIAC_LIBRARIES ${GIAC_LIBRARY})
+if(GMP_LIBRARY)
+    list(APPEND GIAC_LIBRARIES ${GMP_LIBRARY})
+endif()
 
 # Debug output
 if(GMP_INCLUDE_DIR)
     message(STATUS "Found GMP include dir: ${GMP_INCLUDE_DIR}")
 else()
     message(WARNING "GMP include directory not found - GIAC may fail to compile")
+endif()
+if(GMP_LIBRARY)
+    message(STATUS "Found GMP library: ${GMP_LIBRARY}")
+else()
+    message(WARNING "GMP library not found - linking may fail for ZINT operations")
 endif()
 
 # Handle standard find_package arguments
@@ -105,4 +130,4 @@ if(GIAC_FOUND AND NOT TARGET GIAC::giac)
     )
 endif()
 
-mark_as_advanced(GIAC_INCLUDE_DIR GIAC_LIBRARY GMP_INCLUDE_DIR)
+mark_as_advanced(GIAC_INCLUDE_DIR GIAC_LIBRARY GMP_INCLUDE_DIR GMP_LIBRARY)
