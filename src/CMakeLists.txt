@@ -25,10 +25,10 @@ if(USE_GIAC_CABI)
         message(FATAL_ERROR "USE_GIAC_CABI=ON requires GIAC_CABI_LIBRARY to be set")
     endif()
 
-    # GCC_LIB_DIR: path to g++'s runtime libraries (libstdc++, libgcc)
-    # Required so clang++ linker can find them
-    if(GCC_LIB_DIR)
-        link_directories(${GCC_LIB_DIR})
+    # GCC_RUNTIME_LIBS: full paths to g++'s libstdc++.a and libgcc.a
+    # Required because clang++ linker doesn't search g++'s library paths
+    if(NOT GCC_RUNTIME_LIBS)
+        message(WARNING "GCC_RUNTIME_LIBS not set; libstdc++ may not be found")
     endif()
 
     # Link the pre-built C-ABI static library and GCC runtime libraries
@@ -39,8 +39,7 @@ if(USE_GIAC_CABI)
         PRIVATE
             ${GIAC_CABI_LIBRARY}
             ${GIAC_LIBRARIES}
-            stdc++
-            gcc
+            ${GCC_RUNTIME_LIBS}
     )
 else()
     # Standard mode: both files compiled with the same compiler
