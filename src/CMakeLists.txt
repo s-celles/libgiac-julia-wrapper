@@ -25,24 +25,15 @@ if(USE_GIAC_CABI)
         message(FATAL_ERROR "USE_GIAC_CABI=ON requires GIAC_CABI_LIBRARY to be set")
     endif()
 
-    # GCC_LIB_DIR: path to g++'s library directory (for -L flag)
-    # GCC_RUNTIME_LIBS: full paths to libgcc.a / libgcc_eh.a
-    # We link libstdc++ dynamically (-lstdc++) to avoid platform tag mismatch
-    # on aarch64-apple-darwin (GCC's static libstdc++.a has iOS platform tags).
-    if(GCC_LIB_DIR)
-        target_link_directories(giac_wrapper PRIVATE ${GCC_LIB_DIR})
-    endif()
-
-    # Link the pre-built C-ABI static library and GCC runtime libraries
+    # Link the pre-built C-ABI shared library.
+    # libgiac_cabi.dylib is built with g++ which resolves all libstdc++/libgcc
+    # symbols internally, so clang++ doesn't need to link them.
     target_link_libraries(giac_wrapper
         PUBLIC
             JlCxx::cxxwrap_julia
             JlCxx::cxxwrap_julia_stl
         PRIVATE
             ${GIAC_CABI_LIBRARY}
-            ${GIAC_LIBRARIES}
-            stdc++
-            ${GCC_RUNTIME_LIBS}
     )
 else()
     # Standard mode: both files compiled with the same compiler
