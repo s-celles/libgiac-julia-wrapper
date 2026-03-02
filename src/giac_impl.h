@@ -9,6 +9,11 @@
 #ifndef GIAC_IMPL_H
 #define GIAC_IMPL_H
 
+#ifdef USE_GIAC_CABI
+// On macOS/FreeBSD: use C-ABI adapter to bridge g++ (GIAC) and clang++ (CxxWrap)
+#include "giac_cabi_adapter.h"
+#else
+
 #include <string>
 #include <memory>
 #include <functional>
@@ -456,5 +461,7 @@ private:
 };
 
 } // namespace giac_julia
+
+#endif // !USE_GIAC_CABI
 
 #endif // GIAC_IMPL_H
