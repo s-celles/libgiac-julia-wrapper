@@ -1,5 +1,6 @@
 # GitHub Actions CI Workflow for GIAC Julia Wrapper
 # Builds and tests on Linux (Ubuntu) and macOS
+# Windows is not yet supported: requires GIAC_jll which is not yet published
 
 name: CI
 
@@ -35,10 +36,15 @@ jobs:
       - name: Cache Julia packages
         uses: julia-actions/cache@v2
 
-      - name: Install Meson and Ninja
+      - name: Install Meson and Ninja (Linux)
+        if: runner.os == 'Linux'
         run: pip3 install meson ninja
 
-      - name: Install GIAC (Ubuntu)
+      - name: Install Meson and Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install meson ninja
+
+      - name: Install GIAC (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
