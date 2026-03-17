@@ -3,17 +3,18 @@
 !.gitignore
 !README.md
 
-!CMakeLists.txt
-!cmake/
-!cmake/**
+!justfile
+!meson.build
+!meson.options
 
 !src/
-!src/CMakeLists.txt
+!src/meson.build
 !src/*.cpp
 !src/*.h
 
 !tests/
 !tests/cpp/
+!tests/cpp/meson.build
 !tests/cpp/*.cpp
 !tests/julia/
 !tests/julia/*.jl

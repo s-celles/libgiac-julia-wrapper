@@ -1,0 +1,5 @@
+option('giac_include_dir',
+  type: 'string',
+  value: '/usr/include/giac',
+  description: 'Path to GIAC include directory (fallback when pkg-config is unavailable)',
+)

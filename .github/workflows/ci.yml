@@ -35,10 +35,8 @@ jobs:
       - name: Cache Julia packages
         uses: julia-actions/cache@v2
 
-      - name: Cache C++ compilation (ccache)
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ github.job }}-${{ matrix.os }}
+      - name: Install Meson and Ninja
+        run: pip3 install meson ninja
 
       - name: Install GIAC (Ubuntu)
         if: runner.os == 'Linux'
@@ -58,10 +56,7 @@ jobs:
           echo "CONDA_PREFIX=$CONDA_BASE" >> $GITHUB_ENV
           echo "$CONDA_BASE/bin" >> $GITHUB_PATH
           echo "$CONDA_BASE/lib" >> $GITHUB_PATH
-          # Store paths for CMake
-          echo "GIAC_ROOT=$CONDA_BASE" >> $GITHUB_ENV
-          # Debug: show where gmp.h is located
-          find $CONDA_BASE/include -name "gmp.h" 2>/dev/null || echo "gmp.h not found in conda include"
+          echo "PKG_CONFIG_PATH=$CONDA_BASE/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
       - name: Install CxxWrap.jl
         run: julia -e 'using Pkg; Pkg.add("CxxWrap")'
@@ -72,27 +67,13 @@ jobs:
           CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
           echo "prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
 
-      - name: Configure CMake (Linux)
-        if: runner.os == 'Linux'
+      - name: Configure (Meson)
         run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH=${{ steps.cxxwrap.outputs.prefix }} \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-
-      - name: Configure CMake (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${{ steps.cxxwrap.outputs.prefix }};${{ env.GIAC_ROOT }}" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          meson setup builddir \
+            --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }}
 
       - name: Build
-        run: cmake --build build --config Release
+        run: meson compile -C builddir
 
       - name: Run tests
-        working-directory: build
-        run: ctest --output-on-failure --verbose
+        run: meson test -C builddir --verbose
