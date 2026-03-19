@@ -1,6 +1,6 @@
 # GitHub Actions CI Workflow for GIAC Julia Wrapper
 # Builds and tests on Linux (Ubuntu), macOS, and Windows
-# Uses s-celles/giac fork (dev branch) built from source
+# Uses GIAC_jll for pre-built giac binaries on all platforms
 
 name: CI
 
@@ -24,19 +24,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         julia-version: ['1.10']
 
-    env:
-      GIAC_PREFIX: ${{ github.workspace }}/giac-install
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Checkout GIAC (s-celles fork)
-        uses: actions/checkout@v4
-        with:
-          repository: s-celles/giac
-          ref: dev
-          path: giac-src
 
       - name: Setup Julia ${{ matrix.julia-version }}
         uses: julia-actions/setup-julia@v2
@@ -56,121 +46,91 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install meson ninja
 
-      - name: Install Meson, Ninja, and pkgconf (Windows)
+      - name: Install Meson and Ninja (Windows)
         if: runner.os == 'Windows'
         run: pip install meson ninja pkgconf
-
-      # -- Install GIAC dependencies --
-
-      - name: Install GIAC dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgmp-dev libmpfr-dev
-
-      - name: Install GIAC dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install gmp mpfr
 
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Install GIAC dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          vcpkg install gmp mpfr --triplet x64-windows
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          echo "VCPKG_PREFIX=$vcpkgRoot\installed\x64-windows" >> $env:GITHUB_ENV
+      # -- Install Julia packages and extract JLL artifact paths --
 
-      # -- Build and install GIAC from source --
+      - name: Install Julia packages
+        run: julia -e 'using Pkg; Pkg.add(["CxxWrap", "GIAC_jll", "GMP_jll"])'
 
-      - name: Build and install GIAC (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          cd giac-src
-          meson setup builddir --prefix=$GIAC_PREFIX --buildtype=release
-          meson compile -C builddir
-          meson install -C builddir
-
-      - name: Build and install GIAC (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          cd giac-src
-          meson setup builddir --prefix="${{ github.workspace }}\giac-install" --buildtype=release --cmake-prefix-path="$env:VCPKG_PREFIX" --pkg-config-path="$env:VCPKG_PREFIX\lib\pkgconfig"
-          meson compile -C builddir
-          meson install -C builddir
-
-      # -- Discover GIAC install layout --
-
-      - name: Find GIAC pkgconfig and lib paths (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          # Find the .pc file location (lib/ or lib/x86_64-linux-gnu/ etc.)
-          GIAC_PC=$(find $GIAC_PREFIX -name 'giac.pc' -type f 2>/dev/null | head -1)
-          if [ -n "$GIAC_PC" ]; then
-            GIAC_PKGCONFIG_DIR=$(dirname "$GIAC_PC")
-            GIAC_LIB_DIR=$(dirname "$GIAC_PKGCONFIG_DIR")
-          else
-            # Fallback: assume lib/
-            GIAC_PKGCONFIG_DIR=$GIAC_PREFIX/lib/pkgconfig
-            GIAC_LIB_DIR=$GIAC_PREFIX/lib
-          fi
-          echo "GIAC_PKGCONFIG_DIR=$GIAC_PKGCONFIG_DIR" >> $GITHUB_ENV
-          echo "GIAC_LIB_DIR=$GIAC_LIB_DIR" >> $GITHUB_ENV
-          echo "GIAC_INCLUDE_DIR=$GIAC_PREFIX/include/giac" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$GIAC_PKGCONFIG_DIR:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$GIAC_LIB_DIR:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "LIBRARY_PATH=$GIAC_LIB_DIR:$LIBRARY_PATH" >> $GITHUB_ENV
-          echo "CPATH=$GIAC_PREFIX/include/giac:$GIAC_PREFIX/include:$CPATH" >> $GITHUB_ENV
-          echo "Found giac pkgconfig at: $GIAC_PKGCONFIG_DIR"
-          ls -la "$GIAC_PKGCONFIG_DIR/" || true
-
-      - name: Find GIAC pkgconfig and lib paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $giacPc = Get-ChildItem -Path "${{ github.workspace }}\giac-install" -Recurse -Filter "giac.pc" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($giacPc) {
-            $pkgconfigDir = $giacPc.DirectoryName
-            $libDir = Split-Path $pkgconfigDir -Parent
-          } else {
-            $pkgconfigDir = "${{ github.workspace }}\giac-install\lib\pkgconfig"
-            $libDir = "${{ github.workspace }}\giac-install\lib"
-          }
-          echo "GIAC_PKGCONFIG_DIR=$pkgconfigDir" >> $env:GITHUB_ENV
-          echo "GIAC_LIB_DIR=$libDir" >> $env:GITHUB_ENV
-          echo "GIAC_INCLUDE_DIR=${{ github.workspace }}\giac-install\include\giac" >> $env:GITHUB_ENV
-          echo "Found giac pkgconfig at: $pkgconfigDir"
-          if (Test-Path $pkgconfigDir) { Get-ChildItem $pkgconfigDir }
-
-      # -- Build the wrapper --
-
-      - name: Install CxxWrap.jl
-        run: julia -e 'using Pkg; Pkg.add("CxxWrap")'
-
-      - name: Get CxxWrap prefix path
-        id: cxxwrap
+      - name: Get dependency paths
+        id: deps
         shell: bash
         run: |
-          CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
-          echo "prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
+          julia -e '
+            using CxxWrap, GIAC_jll, GMP_jll
+            println("cxxwrap_prefix=", CxxWrap.prefix_path())
+            println("giac_artifact=", GIAC_jll.artifact_dir)
+            println("gmp_artifact=", GMP_jll.artifact_dir)
+          ' | while IFS='=' read -r key value; do
+            echo "$key=$value" >> $GITHUB_OUTPUT
+          done
+
+      - name: Set library search paths (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:$CPATH" >> $GITHUB_ENV
+
+      - name: Set library search paths (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:$CPATH" >> $GITHUB_ENV
+
+      - name: Set library search paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $giacLib = "${{ steps.deps.outputs.giac_artifact }}\bin"
+          $gmpLib = "${{ steps.deps.outputs.gmp_artifact }}\bin"
+          $giacInclude = "${{ steps.deps.outputs.giac_artifact }}\include\giac"
+          $gmpInclude = "${{ steps.deps.outputs.gmp_artifact }}\include"
+          # MSVC uses LIB for library search and INCLUDE for headers
+          echo "LIB=$giacLib;$gmpLib;$env:LIB" >> $env:GITHUB_ENV
+          echo "INCLUDE=$giacInclude;$gmpInclude;$env:INCLUDE" >> $env:GITHUB_ENV
+          echo "PATH=$giacLib;$gmpLib;$env:PATH" >> $env:GITHUB_ENV
+
+      - name: Debug paths
+        shell: bash
+        run: |
+          echo "CxxWrap prefix: ${{ steps.deps.outputs.cxxwrap_prefix }}"
+          echo "GIAC artifact: ${{ steps.deps.outputs.giac_artifact }}"
+          echo "GMP artifact: ${{ steps.deps.outputs.gmp_artifact }}"
+          echo "--- GIAC include ---"
+          ls "${{ steps.deps.outputs.giac_artifact }}/include/" 2>/dev/null || echo "no include dir"
+          ls "${{ steps.deps.outputs.giac_artifact }}/include/giac/" 2>/dev/null | head -5 || echo "no giac subdir"
+          echo "--- GIAC lib ---"
+          ls "${{ steps.deps.outputs.giac_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib dir"
+          echo "--- GIAC bin ---"
+          ls "${{ steps.deps.outputs.giac_artifact }}/bin/" 2>/dev/null | head -10 || echo "no bin dir"
+          echo "--- GMP lib ---"
+          ls "${{ steps.deps.outputs.gmp_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib dir"
+          echo "--- GMP include ---"
+          ls "${{ steps.deps.outputs.gmp_artifact }}/include/" 2>/dev/null | head -10 || echo "no include dir"
+
+      # -- Configure, build, and test --
 
       - name: Configure (Meson) (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           meson setup builddir \
-            --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }} \
-            --pkg-config-path=$GIAC_PKGCONFIG_DIR \
-            -Dgiac_include_dir=$GIAC_INCLUDE_DIR
+            --cmake-prefix-path=${{ steps.deps.outputs.cxxwrap_prefix }} \
+            -Dgiac_include_dir=${{ steps.deps.outputs.giac_artifact }}/include/giac
 
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          meson setup builddir --cmake-prefix-path="${{ steps.cxxwrap.outputs.prefix }}" --pkg-config-path="$env:GIAC_PKGCONFIG_DIR;$env:VCPKG_PREFIX\lib\pkgconfig" -Dgiac_include_dir="$env:GIAC_INCLUDE_DIR"
+          meson setup builddir --cmake-prefix-path="${{ steps.deps.outputs.cxxwrap_prefix }}" -Dgiac_include_dir="${{ steps.deps.outputs.giac_artifact }}\include\giac"
 
       - name: Build
         run: meson compile -C builddir
