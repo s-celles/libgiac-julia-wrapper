@@ -6,6 +6,12 @@ giac_wrapper_sources = files(
   'giac_wrapper.cpp',
 )
 
+# On Windows/MinGW, DLLs need --export-all-symbols for tests to link
+extra_link_args = []
+if host_machine.system() == 'windows'
+  extra_link_args += ['-Wl,--export-all-symbols']
+endif
+
 giac_wrapper_lib = shared_library('giac_wrapper',
   giac_wrapper_sources,
   dependencies: [jlcxx_dep, giac_dep, gmp_dep, mpfr_dep, intl_dep],
@@ -14,6 +20,7 @@ giac_wrapper_lib = shared_library('giac_wrapper',
   version: meson.project_version(),
   soversion: '0',
   gnu_symbol_visibility: 'default',
+  link_args: extra_link_args,
 )
 
 # For tests and other subprojects to link against
