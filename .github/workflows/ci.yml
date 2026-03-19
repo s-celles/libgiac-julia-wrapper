@@ -74,8 +74,10 @@ jobs:
         run: |
           CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
           GIAC_ARTIFACT=$(julia -e 'using GIAC_jll; print(GIAC_jll.artifact_dir)')
+          JULIA_BINDIR=$(julia -e 'print(Sys.BINDIR)')
           echo "cxxwrap_prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
           echo "giac_artifact=$GIAC_ARTIFACT" >> $GITHUB_OUTPUT
+          echo "julia_bindir=$JULIA_BINDIR" >> $GITHUB_OUTPUT
           echo "CxxWrap prefix: $CXXWRAP_PREFIX"
           echo "GIAC artifact: $GIAC_ARTIFACT"
           echo "--- GIAC include ---"
@@ -120,8 +122,10 @@ jobs:
         env:
           CXXWRAP_PREFIX: ${{ steps.deps.outputs.cxxwrap_prefix }}
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
           export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$LIBRARY_PATH"
+          export PATH="$JULIA_BINDIR:$PATH"
           meson setup builddir \
             --cmake-prefix-path="$CXXWRAP_PREFIX" \
             -Dgiac_include_dir="$GIAC_ARTIFACT/include/giac"

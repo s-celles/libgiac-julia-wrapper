@@ -40,6 +40,13 @@ if not gmp_dep.found()
   gmp_dep = cpp.find_library('gmp', required: true)
 endif
 
+# MPFR library (required: giac headers include mpfr.h)
+mpfr_dep = dependency('mpfr', required: false)
+if not mpfr_dep.found()
+  cpp = meson.get_compiler('cpp')
+  mpfr_dep = cpp.find_library('mpfr', required: true)
+endif
+
 subdir('src')
 subdir('tests/cpp')
 

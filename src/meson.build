@@ -8,7 +8,7 @@ giac_wrapper_sources = files(
 
 giac_wrapper_lib = shared_library('giac_wrapper',
   giac_wrapper_sources,
-  dependencies: [jlcxx_dep, giac_dep, gmp_dep],
+  dependencies: [jlcxx_dep, giac_dep, gmp_dep, mpfr_dep],
   include_directories: include_directories('.'),
   install: true,
   version: meson.project_version(),
@@ -19,7 +19,7 @@ giac_wrapper_lib = shared_library('giac_wrapper',
 giac_wrapper_dep = declare_dependency(
   link_with: giac_wrapper_lib,
   include_directories: include_directories('.'),
-  dependencies: [giac_dep, gmp_dep],
+  dependencies: [giac_dep, gmp_dep, mpfr_dep],
 )
 
 # Install headers
