@@ -18,6 +18,9 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # Windows is experimental: CxxWrap.jl artifacts are MSVC-built,
+    # incompatible with MSYS2/MinGW toolchain
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
