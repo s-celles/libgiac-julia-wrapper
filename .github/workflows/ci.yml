@@ -1,6 +1,6 @@
 # GitHub Actions CI Workflow for GIAC Julia Wrapper
 # Builds and tests on Linux (Ubuntu), macOS, and Windows
-# Uses GIAC_jll for pre-built giac binaries on all platforms
+# Uses GIAC_jll for pre-built giac, system packages for GMP/MPFR headers
 
 name: CI
 
@@ -36,71 +36,66 @@ jobs:
       - name: Cache Julia packages
         uses: julia-actions/cache@v2
 
-      # -- Install build tools --
+      # -- Install build tools and system dependencies --
 
-      - name: Install Meson and Ninja (Linux)
+      - name: Install build tools and dependencies (Linux)
         if: runner.os == 'Linux'
-        run: pip3 install meson ninja
+        run: |
+          pip3 install meson ninja
+          sudo apt-get update
+          sudo apt-get install -y libgmp-dev libmpfr-dev
 
-      - name: Install Meson and Ninja (macOS)
+      - name: Install build tools and dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install meson ninja
+        run: brew install meson ninja gmp mpfr
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: mingw-w64-x86_64-meson mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-pkg-config
+          install: >-
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-gmp
+            mingw-w64-x86_64-mpfr
 
-      # -- Install Julia packages and extract JLL artifact paths --
+      # -- Install Julia packages and extract JLL paths --
 
       - name: Install Julia packages
-        run: julia -e 'using Pkg; Pkg.add(["CxxWrap", "GIAC_jll", "GMP_jll", "MPFR_jll"])'
+        run: julia -e 'using Pkg; Pkg.add(["CxxWrap", "GIAC_jll"])'
 
-      - name: Get dependency paths
+      - name: Get JLL paths
         id: deps
         shell: bash
         run: |
-          julia -e '
-            using CxxWrap, GIAC_jll, GMP_jll, MPFR_jll
-            println("cxxwrap_prefix=", CxxWrap.prefix_path())
-            println("giac_artifact=", GIAC_jll.artifact_dir)
-            println("gmp_artifact=", GMP_jll.artifact_dir)
-            println("mpfr_artifact=", MPFR_jll.artifact_dir)
-          ' | while IFS='=' read -r key value; do
-            echo "$key=$value" >> $GITHUB_OUTPUT
-          done
-
-      - name: Debug JLL artifact layout
-        shell: bash
-        run: |
-          echo "=== GIAC ==="
-          ls "${{ steps.deps.outputs.giac_artifact }}/include/giac/" 2>/dev/null | head -5 || echo "no include/giac/"
-          ls "${{ steps.deps.outputs.giac_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib/"
-          ls "${{ steps.deps.outputs.giac_artifact }}/bin/" 2>/dev/null | head -10 || echo "no bin/"
-          echo "=== GMP ==="
-          ls "${{ steps.deps.outputs.gmp_artifact }}/include/" 2>/dev/null | head -5
-          ls "${{ steps.deps.outputs.gmp_artifact }}/lib/" 2>/dev/null | head -10
-          echo "=== MPFR ==="
-          ls "${{ steps.deps.outputs.mpfr_artifact }}/include/" 2>/dev/null | head -5
-          ls "${{ steps.deps.outputs.mpfr_artifact }}/lib/" 2>/dev/null | head -10
+          CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
+          GIAC_ARTIFACT=$(julia -e 'using GIAC_jll; print(GIAC_jll.artifact_dir)')
+          echo "cxxwrap_prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
+          echo "giac_artifact=$GIAC_ARTIFACT" >> $GITHUB_OUTPUT
+          echo "CxxWrap prefix: $CXXWRAP_PREFIX"
+          echo "GIAC artifact: $GIAC_ARTIFACT"
+          echo "--- GIAC include ---"
+          ls "$GIAC_ARTIFACT/include/giac/" 2>/dev/null | head -5 || echo "no include/giac/"
+          echo "--- GIAC lib ---"
+          ls "$GIAC_ARTIFACT/lib/" 2>/dev/null | head -10 || echo "no lib/"
 
       # -- Configure, build, and test (Linux/macOS) --
 
       - name: Set library paths (Linux)
         if: runner.os == 'Linux'
         run: |
-          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:${{ steps.deps.outputs.mpfr_artifact }}/include:$CPATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Set library paths (macOS)
         if: runner.os == 'macOS'
         run: |
-          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
-          echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:${{ steps.deps.outputs.mpfr_artifact }}/include:$CPATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Configure (Meson) (Linux/macOS)
         if: runner.os != 'Windows'
@@ -118,7 +113,6 @@ jobs:
         run: meson test -C builddir --verbose
 
       # -- Configure, build, and test (Windows via MSYS2/MinGW) --
-      # JLL artifacts on Windows are MinGW-built (.dll.a import libs)
 
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
@@ -126,11 +120,8 @@ jobs:
         env:
           CXXWRAP_PREFIX: ${{ steps.deps.outputs.cxxwrap_prefix }}
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
-          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
-          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
         run: |
-          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$GMP_ARTIFACT/lib:$MPFR_ARTIFACT/lib:$LIBRARY_PATH"
-          export CPATH="$GIAC_ARTIFACT/include/giac:$GIAC_ARTIFACT/include:$GMP_ARTIFACT/include:$MPFR_ARTIFACT/include:$CPATH"
+          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$LIBRARY_PATH"
           meson setup builddir \
             --cmake-prefix-path="$CXXWRAP_PREFIX" \
             -Dgiac_include_dir="$GIAC_ARTIFACT/include/giac"
@@ -140,10 +131,8 @@ jobs:
         shell: msys2 {0}
         env:
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
-          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
-          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
         run: |
-          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$GMP_ARTIFACT/lib:$MPFR_ARTIFACT/lib:$LIBRARY_PATH"
+          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$LIBRARY_PATH"
           meson compile -C builddir
 
       - name: Run tests (Windows)
@@ -151,8 +140,6 @@ jobs:
         shell: msys2 {0}
         env:
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
-          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
-          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
         run: |
-          export PATH="$GIAC_ARTIFACT/bin:$GMP_ARTIFACT/bin:$MPFR_ARTIFACT/bin:$PATH"
+          export PATH="$GIAC_ARTIFACT/bin:$PATH"
           meson test -C builddir --verbose
