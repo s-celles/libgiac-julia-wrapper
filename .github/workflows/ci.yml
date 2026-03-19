@@ -56,9 +56,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install meson ninja
 
-      - name: Install Meson and Ninja (Windows)
+      - name: Install Meson, Ninja, and pkgconf (Windows)
         if: runner.os == 'Windows'
-        run: pip install meson ninja
+        run: pip install meson ninja pkgconf
 
       # -- Install GIAC dependencies --
 
@@ -78,7 +78,11 @@ jobs:
 
       - name: Install GIAC dependencies (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install gmp mpfr --triplet x64-windows
+        shell: pwsh
+        run: |
+          vcpkg install gmp mpfr --triplet x64-windows
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          echo "VCPKG_PREFIX=$vcpkgRoot\installed\x64-windows" >> $env:GITHUB_ENV
 
       # -- Build and install GIAC from source --
 
@@ -92,9 +96,10 @@ jobs:
 
       - name: Build and install GIAC (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
           cd giac-src
-          meson setup builddir --prefix=${{ github.workspace }}\giac-install --buildtype=release --cmake-prefix-path=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows --pkg-config-path=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig
+          meson setup builddir --prefix="${{ github.workspace }}\giac-install" --buildtype=release --cmake-prefix-path="$env:VCPKG_PREFIX" --pkg-config-path="$env:VCPKG_PREFIX\lib\pkgconfig"
           meson compile -C builddir
           meson install -C builddir
 
@@ -163,11 +168,9 @@ jobs:
 
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
-        run: >
-          meson setup builddir
-          --cmake-prefix-path="${{ steps.cxxwrap.outputs.prefix }}"
-          --pkg-config-path="$env:GIAC_PKGCONFIG_DIR;$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
-          -Dgiac_include_dir="$env:GIAC_INCLUDE_DIR"
+        shell: pwsh
+        run: |
+          meson setup builddir --cmake-prefix-path="${{ steps.cxxwrap.outputs.prefix }}" --pkg-config-path="$env:GIAC_PKGCONFIG_DIR;$env:VCPKG_PREFIX\lib\pkgconfig" -Dgiac_include_dir="$env:GIAC_INCLUDE_DIR"
 
       - name: Build
         run: meson compile -C builddir
