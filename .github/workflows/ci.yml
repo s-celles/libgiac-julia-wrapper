@@ -46,78 +46,61 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install meson ninja
 
-      - name: Install Meson and Ninja (Windows)
+      - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
-        run: pip install meson ninja pkgconf
-
-      - name: Setup MSVC (Windows)
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-meson mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-pkg-config
 
       # -- Install Julia packages and extract JLL artifact paths --
 
       - name: Install Julia packages
-        run: julia -e 'using Pkg; Pkg.add(["CxxWrap", "GIAC_jll", "GMP_jll"])'
+        run: julia -e 'using Pkg; Pkg.add(["CxxWrap", "GIAC_jll", "GMP_jll", "MPFR_jll"])'
 
       - name: Get dependency paths
         id: deps
         shell: bash
         run: |
           julia -e '
-            using CxxWrap, GIAC_jll, GMP_jll
+            using CxxWrap, GIAC_jll, GMP_jll, MPFR_jll
             println("cxxwrap_prefix=", CxxWrap.prefix_path())
             println("giac_artifact=", GIAC_jll.artifact_dir)
             println("gmp_artifact=", GMP_jll.artifact_dir)
+            println("mpfr_artifact=", MPFR_jll.artifact_dir)
           ' | while IFS='=' read -r key value; do
             echo "$key=$value" >> $GITHUB_OUTPUT
           done
 
-      - name: Set library search paths (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:$CPATH" >> $GITHUB_ENV
-
-      - name: Set library search paths (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
-          echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:$CPATH" >> $GITHUB_ENV
-
-      - name: Set library search paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $giacLib = "${{ steps.deps.outputs.giac_artifact }}\bin"
-          $gmpLib = "${{ steps.deps.outputs.gmp_artifact }}\bin"
-          $giacInclude = "${{ steps.deps.outputs.giac_artifact }}\include\giac"
-          $gmpInclude = "${{ steps.deps.outputs.gmp_artifact }}\include"
-          # MSVC uses LIB for library search and INCLUDE for headers
-          echo "LIB=$giacLib;$gmpLib;$env:LIB" >> $env:GITHUB_ENV
-          echo "INCLUDE=$giacInclude;$gmpInclude;$env:INCLUDE" >> $env:GITHUB_ENV
-          echo "PATH=$giacLib;$gmpLib;$env:PATH" >> $env:GITHUB_ENV
-
-      - name: Debug paths
+      - name: Debug JLL artifact layout
         shell: bash
         run: |
-          echo "CxxWrap prefix: ${{ steps.deps.outputs.cxxwrap_prefix }}"
-          echo "GIAC artifact: ${{ steps.deps.outputs.giac_artifact }}"
-          echo "GMP artifact: ${{ steps.deps.outputs.gmp_artifact }}"
-          echo "--- GIAC include ---"
-          ls "${{ steps.deps.outputs.giac_artifact }}/include/" 2>/dev/null || echo "no include dir"
-          ls "${{ steps.deps.outputs.giac_artifact }}/include/giac/" 2>/dev/null | head -5 || echo "no giac subdir"
-          echo "--- GIAC lib ---"
-          ls "${{ steps.deps.outputs.giac_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib dir"
-          echo "--- GIAC bin ---"
-          ls "${{ steps.deps.outputs.giac_artifact }}/bin/" 2>/dev/null | head -10 || echo "no bin dir"
-          echo "--- GMP lib ---"
-          ls "${{ steps.deps.outputs.gmp_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib dir"
-          echo "--- GMP include ---"
-          ls "${{ steps.deps.outputs.gmp_artifact }}/include/" 2>/dev/null | head -10 || echo "no include dir"
+          echo "=== GIAC ==="
+          ls "${{ steps.deps.outputs.giac_artifact }}/include/giac/" 2>/dev/null | head -5 || echo "no include/giac/"
+          ls "${{ steps.deps.outputs.giac_artifact }}/lib/" 2>/dev/null | head -10 || echo "no lib/"
+          ls "${{ steps.deps.outputs.giac_artifact }}/bin/" 2>/dev/null | head -10 || echo "no bin/"
+          echo "=== GMP ==="
+          ls "${{ steps.deps.outputs.gmp_artifact }}/include/" 2>/dev/null | head -5
+          ls "${{ steps.deps.outputs.gmp_artifact }}/lib/" 2>/dev/null | head -10
+          echo "=== MPFR ==="
+          ls "${{ steps.deps.outputs.mpfr_artifact }}/include/" 2>/dev/null | head -5
+          ls "${{ steps.deps.outputs.mpfr_artifact }}/lib/" 2>/dev/null | head -10
 
-      # -- Configure, build, and test --
+      # -- Configure, build, and test (Linux/macOS) --
+
+      - name: Set library paths (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:${{ steps.deps.outputs.mpfr_artifact }}/include:$CPATH" >> $GITHUB_ENV
+
+      - name: Set library paths (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:${{ steps.deps.outputs.gmp_artifact }}/lib:${{ steps.deps.outputs.mpfr_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=${{ steps.deps.outputs.giac_artifact }}/include/giac:${{ steps.deps.outputs.giac_artifact }}/include:${{ steps.deps.outputs.gmp_artifact }}/include:${{ steps.deps.outputs.mpfr_artifact }}/include:$CPATH" >> $GITHUB_ENV
 
       - name: Configure (Meson) (Linux/macOS)
         if: runner.os != 'Windows'
@@ -126,14 +109,50 @@ jobs:
             --cmake-prefix-path=${{ steps.deps.outputs.cxxwrap_prefix }} \
             -Dgiac_include_dir=${{ steps.deps.outputs.giac_artifact }}/include/giac
 
-      - name: Configure (Meson) (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          meson setup builddir --cmake-prefix-path="${{ steps.deps.outputs.cxxwrap_prefix }}" -Dgiac_include_dir="${{ steps.deps.outputs.giac_artifact }}\include\giac"
-
-      - name: Build
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
         run: meson compile -C builddir
 
-      - name: Run tests
+      - name: Run tests (Linux/macOS)
+        if: runner.os != 'Windows'
         run: meson test -C builddir --verbose
+
+      # -- Configure, build, and test (Windows via MSYS2/MinGW) --
+      # JLL artifacts on Windows are MinGW-built (.dll.a import libs)
+
+      - name: Configure (Meson) (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          CXXWRAP_PREFIX: ${{ steps.deps.outputs.cxxwrap_prefix }}
+          GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
+          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
+        run: |
+          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$GMP_ARTIFACT/lib:$MPFR_ARTIFACT/lib:$LIBRARY_PATH"
+          export CPATH="$GIAC_ARTIFACT/include/giac:$GIAC_ARTIFACT/include:$GMP_ARTIFACT/include:$MPFR_ARTIFACT/include:$CPATH"
+          meson setup builddir \
+            --cmake-prefix-path="$CXXWRAP_PREFIX" \
+            -Dgiac_include_dir="$GIAC_ARTIFACT/include/giac"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
+          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
+        run: |
+          export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$GMP_ARTIFACT/lib:$MPFR_ARTIFACT/lib:$LIBRARY_PATH"
+          meson compile -C builddir
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        env:
+          GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          GMP_ARTIFACT: ${{ steps.deps.outputs.gmp_artifact }}
+          MPFR_ARTIFACT: ${{ steps.deps.outputs.mpfr_artifact }}
+        run: |
+          export PATH="$GIAC_ARTIFACT/bin:$GMP_ARTIFACT/bin:$MPFR_ARTIFACT/bin:$PATH"
+          meson test -C builddir --verbose
