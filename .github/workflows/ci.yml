@@ -166,6 +166,8 @@ jobs:
         shell: msys2 {0}
         env:
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          CXXWRAP_PREFIX: ${{ steps.deps.outputs.cxxwrap_prefix }}
+          JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
-          export PATH="$GIAC_ARTIFACT/bin:$PATH"
+          export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):$PATH"
           meson test -C builddir --verbose
