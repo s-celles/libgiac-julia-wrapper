@@ -18,9 +18,6 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    # Windows is experimental: CxxWrap.jl artifacts are MSVC-built,
-    # incompatible with MSYS2/MinGW toolchain
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -75,12 +72,13 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install gmp mpfr
 
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Install GIAC dependencies (Windows)
         if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          install: mingw-w64-x86_64-gmp mingw-w64-x86_64-mpfr mingw-w64-x86_64-pkg-config mingw-w64-x86_64-meson mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake
+        run: vcpkg install gmp mpfr --triplet x64-windows
 
       # -- Build and install GIAC from source --
 
@@ -94,10 +92,9 @@ jobs:
 
       - name: Build and install GIAC (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
         run: |
           cd giac-src
-          meson setup builddir --prefix="$GIAC_PREFIX" --buildtype=release
+          meson setup builddir --prefix=${{ github.workspace }}\giac-install --buildtype=release --cmake-prefix-path=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows --pkg-config-path=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig
           meson compile -C builddir
           meson install -C builddir
 
@@ -128,21 +125,21 @@ jobs:
 
       - name: Find GIAC pkgconfig and lib paths (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          GIAC_PC=$(find "$GIAC_PREFIX" -name 'giac.pc' -type f 2>/dev/null | head -1)
-          if [ -n "$GIAC_PC" ]; then
-            GIAC_PKGCONFIG_DIR=$(dirname "$GIAC_PC")
-            GIAC_LIB_DIR=$(dirname "$GIAC_PKGCONFIG_DIR")
-          else
-            GIAC_PKGCONFIG_DIR=$GIAC_PREFIX/lib/pkgconfig
-            GIAC_LIB_DIR=$GIAC_PREFIX/lib
-          fi
-          echo "GIAC_PKGCONFIG_DIR=$GIAC_PKGCONFIG_DIR" >> $GITHUB_ENV
-          echo "GIAC_LIB_DIR=$GIAC_LIB_DIR" >> $GITHUB_ENV
-          echo "GIAC_INCLUDE_DIR=$GIAC_PREFIX/include/giac" >> $GITHUB_ENV
-          echo "Found giac pkgconfig at: $GIAC_PKGCONFIG_DIR"
-          ls -la "$GIAC_PKGCONFIG_DIR/" || true
+          $giacPc = Get-ChildItem -Path "${{ github.workspace }}\giac-install" -Recurse -Filter "giac.pc" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($giacPc) {
+            $pkgconfigDir = $giacPc.DirectoryName
+            $libDir = Split-Path $pkgconfigDir -Parent
+          } else {
+            $pkgconfigDir = "${{ github.workspace }}\giac-install\lib\pkgconfig"
+            $libDir = "${{ github.workspace }}\giac-install\lib"
+          }
+          echo "GIAC_PKGCONFIG_DIR=$pkgconfigDir" >> $env:GITHUB_ENV
+          echo "GIAC_LIB_DIR=$libDir" >> $env:GITHUB_ENV
+          echo "GIAC_INCLUDE_DIR=${{ github.workspace }}\giac-install\include\giac" >> $env:GITHUB_ENV
+          echo "Found giac pkgconfig at: $pkgconfigDir"
+          if (Test-Path $pkgconfigDir) { Get-ChildItem $pkgconfigDir }
 
       # -- Build the wrapper --
 
@@ -166,27 +163,14 @@ jobs:
 
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          meson setup builddir \
-            --cmake-prefix-path="${{ steps.cxxwrap.outputs.prefix }}" \
-            --pkg-config-path="$GIAC_PKGCONFIG_DIR" \
-            -Dgiac_include_dir="$GIAC_INCLUDE_DIR"
+        run: >
+          meson setup builddir
+          --cmake-prefix-path="${{ steps.cxxwrap.outputs.prefix }}"
+          --pkg-config-path="$env:GIAC_PKGCONFIG_DIR;$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
+          -Dgiac_include_dir="$env:GIAC_INCLUDE_DIR"
 
-      - name: Build (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Build
         run: meson compile -C builddir
 
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: meson compile -C builddir
-
-      - name: Run tests (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: meson test -C builddir --verbose
-
-      - name: Run tests (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
+      - name: Run tests
         run: meson test -C builddir --verbose
