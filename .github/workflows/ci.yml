@@ -47,7 +47,7 @@ jobs:
 
       - name: Install build tools and dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install meson ninja gmp mpfr
+        run: brew install meson ninja gmp mpfr gettext
 
       - name: Setup MSYS2 (Windows)
         if: runner.os == 'Windows'
@@ -125,7 +125,10 @@ jobs:
           JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
           export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$LIBRARY_PATH"
-          export PATH="$JULIA_BINDIR:$PATH"
+          # Convert Windows path to MSYS2 path for Julia
+          JULIA_PREFIX_MSYS=$(cygpath -u "$(dirname "$JULIA_BINDIR")")
+          export Julia_PREFIX="$JULIA_PREFIX_MSYS"
+          export PATH="$(cygpath -u "$JULIA_BINDIR"):$PATH"
           meson setup builddir \
             --cmake-prefix-path="$CXXWRAP_PREFIX" \
             -Dgiac_include_dir="$GIAC_ARTIFACT/include/giac"

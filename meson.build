@@ -47,6 +47,17 @@ if not mpfr_dep.found()
   mpfr_dep = cpp.find_library('mpfr', required: true)
 endif
 
+# Gettext/libintl (required: giac headers include libintl.h via giacintl.h)
+intl_dep = dependency('intl', required: false)
+if not intl_dep.found()
+  cpp = meson.get_compiler('cpp')
+  intl_dep = cpp.find_library('intl', required: false)
+  if not intl_dep.found()
+    # On some systems libintl is part of libc (e.g., glibc on Linux)
+    intl_dep = dependency('', required: false)
+  endif
+endif
+
 subdir('src')
 subdir('tests/cpp')
 
