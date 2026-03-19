@@ -1,7 +1,7 @@
 project('giac_wrapper', 'cpp',
   version: '0.3.0',
   meson_version: '>= 1.2.0',
-  license: 'MIT',
+  license: 'GPL-3.0-or-later',
   default_options: [
     'cpp_std=c++17',
     'warning_level=2',

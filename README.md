@@ -9,27 +9,44 @@ C++ wrapper for [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer algebra sy
 - String-based expression evaluation
 - Context management for variable persistence
 - Native Gen object manipulation
-- Support for Linux and macOS
+- Support for Linux, macOS, and Windows
 
 ## Requirements
 
 - GIAC library (libgiac-dev)
 - Julia 1.10+
-- CMake 3.15+
+- Meson 1.2+
+- Ninja
 - C++17 compiler
 
 ## Building
 
+Using [just](https://github.com/casey/just):
+
 ```bash
 julia -e 'using Pkg; Pkg.add("CxxWrap")'
-cmake -B build -DCMAKE_PREFIX_PATH=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
-cmake --build build
+just setup
+just build
+```
+
+Or manually with Meson:
+
+```bash
+julia -e 'using Pkg; Pkg.add("CxxWrap")'
+meson setup builddir --cmake-prefix-path="$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')"
+meson compile -C builddir
 ```
 
 ## Testing
 
 ```bash
-cd build && ctest --output-on-failure
+just test
+```
+
+Or manually:
+
+```bash
+meson test -C builddir
 ```
 
 ## License

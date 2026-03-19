@@ -1,6 +1,6 @@
 # GitHub Actions CI Workflow for GIAC Julia Wrapper
-# Builds and tests on Linux (Ubuntu) and macOS
-# Windows is not yet supported: requires GIAC_jll which is not yet published
+# Builds and tests on Linux (Ubuntu), macOS, and Windows
+# Uses s-celles/giac fork (dev branch) built from source
 
 name: CI
 
@@ -21,12 +21,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         julia-version: ['1.10']
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Checkout GIAC (s-celles fork)
+        uses: actions/checkout@v4
+        with:
+          repository: s-celles/giac
+          ref: dev
+          path: giac-src
 
       - name: Setup Julia ${{ matrix.julia-version }}
         uses: julia-actions/setup-julia@v2
@@ -36,6 +43,8 @@ jobs:
       - name: Cache Julia packages
         uses: julia-actions/cache@v2
 
+      # -- Install build tools --
+
       - name: Install Meson and Ninja (Linux)
         if: runner.os == 'Linux'
         run: pip3 install meson ninja
@@ -44,39 +53,105 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install meson ninja
 
-      - name: Install GIAC (Linux)
+      - name: Install Meson and Ninja (Windows)
+        if: runner.os == 'Windows'
+        run: pip install meson ninja
+
+      # -- Install GIAC dependencies --
+
+      - name: Install GIAC dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgiac-dev libgiac0
+          sudo apt-get install -y libgmp-dev libmpfr-dev
 
-      - name: Install GIAC (macOS)
+      - name: Install GIAC dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gmp mpfr
+
+      - name: Install GIAC dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gmp mingw-w64-x86_64-mpfr mingw-w64-x86_64-pkg-config
+
+      # -- Build and install GIAC from source --
+
+      - name: Build and install GIAC (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd giac-src
+          meson setup builddir --prefix=$GITHUB_WORKSPACE/giac-install --buildtype=release
+          meson compile -C builddir
+          meson install -C builddir
+          echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/giac-install/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/giac-install/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Build and install GIAC (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install miniforge
-          eval "$(conda shell.bash hook)"
-          conda activate base
-          conda install -c conda-forge giac gmp -y
-          # Export conda paths for subsequent steps
-          CONDA_BASE=$(conda info --base)
-          echo "CONDA_PREFIX=$CONDA_BASE" >> $GITHUB_ENV
-          echo "$CONDA_BASE/bin" >> $GITHUB_PATH
-          echo "$CONDA_BASE/lib" >> $GITHUB_PATH
-          echo "PKG_CONFIG_PATH=$CONDA_BASE/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          cd giac-src
+          meson setup builddir --prefix=$GITHUB_WORKSPACE/giac-install --buildtype=release
+          meson compile -C builddir
+          meson install -C builddir
+          echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/giac-install/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "DYLD_LIBRARY_PATH=$GITHUB_WORKSPACE/giac-install/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$GITHUB_WORKSPACE/giac-install/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=$GITHUB_WORKSPACE/giac-install/include:$CPATH" >> $GITHUB_ENV
+
+      - name: Build and install GIAC (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          cd giac-src
+          meson setup builddir --prefix=$GITHUB_WORKSPACE/giac-install --buildtype=release
+          meson compile -C builddir
+          meson install -C builddir
+
+      - name: Set GIAC paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "PKG_CONFIG_PATH=$env:GITHUB_WORKSPACE\giac-install\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "$env:GITHUB_WORKSPACE\giac-install\bin" >> $env:GITHUB_PATH
+          echo "LIBRARY_PATH=$env:GITHUB_WORKSPACE\giac-install\lib" >> $env:GITHUB_ENV
+          echo "CPATH=$env:GITHUB_WORKSPACE\giac-install\include" >> $env:GITHUB_ENV
+
+      # -- Build the wrapper --
 
       - name: Install CxxWrap.jl
         run: julia -e 'using Pkg; Pkg.add("CxxWrap")'
 
       - name: Get CxxWrap prefix path
         id: cxxwrap
+        shell: bash
         run: |
           CXXWRAP_PREFIX=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')
           echo "prefix=$CXXWRAP_PREFIX" >> $GITHUB_OUTPUT
 
-      - name: Configure (Meson)
+      - name: Configure (Meson) (Linux)
+        if: runner.os == 'Linux'
         run: |
           meson setup builddir \
             --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }}
+
+      - name: Configure (Meson) (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          meson setup builddir \
+            --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }} \
+            --pkg-config-path=$GITHUB_WORKSPACE/giac-install/lib/pkgconfig \
+            -Dgiac_include_dir=$GITHUB_WORKSPACE/giac-install/include
+
+      - name: Configure (Meson) (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          meson setup builddir \
+            --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }} \
+            --pkg-config-path=$GITHUB_WORKSPACE/giac-install/lib/pkgconfig \
+            -Dgiac_include_dir=$GITHUB_WORKSPACE/giac-install/include
 
       - name: Build
         run: meson compile -C builddir
