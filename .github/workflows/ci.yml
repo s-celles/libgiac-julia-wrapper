@@ -97,8 +97,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           GETTEXT_PREFIX=$(brew --prefix gettext)
+          GMP_PREFIX=$(brew --prefix gmp)
+          MPFR_PREFIX=$(brew --prefix mpfr)
           GIAC_LIB=${{ steps.deps.outputs.giac_artifact }}/lib
-          echo "LIBRARY_PATH=$GIAC_LIB:$GETTEXT_PREFIX/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$GIAC_LIB:$GMP_PREFIX/lib:$MPFR_PREFIX/lib:$GETTEXT_PREFIX/lib:$LIBRARY_PATH" >> $GITHUB_ENV
           echo "DYLD_LIBRARY_PATH=$GIAC_LIB:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=$GETTEXT_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
           echo "CPATH=$GETTEXT_PREFIX/include:$CPATH" >> $GITHUB_ENV

@@ -13,6 +13,7 @@ giac_wrapper_lib = shared_library('giac_wrapper',
   install: true,
   version: meson.project_version(),
   soversion: '0',
+  gnu_symbol_visibility: 'default',
 )
 
 # For tests and other subprojects to link against
