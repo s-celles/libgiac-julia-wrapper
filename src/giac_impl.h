@@ -9,6 +9,7 @@
 #ifndef GIAC_IMPL_H
 #define GIAC_IMPL_H
 
+#include <cstdint>
 #include <string>
 #include <memory>
 #include <functional>
