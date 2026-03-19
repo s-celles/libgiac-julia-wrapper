@@ -98,6 +98,11 @@ jobs:
         run: |
           echo "LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$LIBRARY_PATH" >> $GITHUB_ENV
           echo "DYLD_LIBRARY_PATH=${{ steps.deps.outputs.giac_artifact }}/lib:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          # gettext is keg-only on brew, add its paths explicitly
+          GETTEXT_PREFIX=$(brew --prefix gettext)
+          echo "PKG_CONFIG_PATH=$GETTEXT_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "CPATH=$GETTEXT_PREFIX/include:$CPATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$GETTEXT_PREFIX/lib:$LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Configure (Meson) (Linux/macOS)
         if: runner.os != 'Windows'
@@ -116,6 +121,21 @@ jobs:
 
       # -- Configure, build, and test (Windows via MSYS2/MinGW) --
 
+      - name: Create Meson native file (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          JULIA_BINDIR="${{ steps.deps.outputs.julia_bindir }}"
+          JULIA_PREFIX="$(dirname "$JULIA_BINDIR")"
+          # Write a native file that tells cmake where Julia is
+          cat > native-windows.ini << NEOF
+          [properties]
+          cmake_prefix_path = ['${{ steps.deps.outputs.cxxwrap_prefix }}']
+          [cmake]
+          Julia_PREFIX = '$JULIA_PREFIX'
+          NEOF
+          cat native-windows.ini
+
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -125,10 +145,8 @@ jobs:
           JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
           export LIBRARY_PATH="$GIAC_ARTIFACT/lib:$LIBRARY_PATH"
-          # Convert Windows path to MSYS2 path for Julia
-          JULIA_PREFIX_MSYS=$(cygpath -u "$(dirname "$JULIA_BINDIR")")
-          export Julia_PREFIX="$JULIA_PREFIX_MSYS"
-          export PATH="$(cygpath -u "$JULIA_BINDIR"):$PATH"
+          # Append Julia to PATH (not prepend, to avoid breaking gcc)
+          export PATH="$PATH:$(cygpath -u "$JULIA_BINDIR")"
           meson setup builddir \
             --cmake-prefix-path="$CXXWRAP_PREFIX" \
             -Dgiac_include_dir="$GIAC_ARTIFACT/include/giac"
