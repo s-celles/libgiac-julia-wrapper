@@ -74,7 +74,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: mingw-w64-x86_64-gmp mingw-w64-x86_64-mpfr mingw-w64-x86_64-pkg-config
+          install: mingw-w64-x86_64-gmp mingw-w64-x86_64-mpfr mingw-w64-x86_64-pkg-config mingw-w64-x86_64-meson mingw-w64-x86_64-ninja mingw-w64-x86_64-gcc
 
       # -- Build and install GIAC from source --
 
@@ -109,15 +109,6 @@ jobs:
           meson compile -C builddir
           meson install -C builddir
 
-      - name: Set GIAC paths (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          echo "PKG_CONFIG_PATH=$env:GITHUB_WORKSPACE\giac-install\lib\pkgconfig" >> $env:GITHUB_ENV
-          echo "$env:GITHUB_WORKSPACE\giac-install\bin" >> $env:GITHUB_PATH
-          echo "LIBRARY_PATH=$env:GITHUB_WORKSPACE\giac-install\lib" >> $env:GITHUB_ENV
-          echo "CPATH=$env:GITHUB_WORKSPACE\giac-install\include" >> $env:GITHUB_ENV
-
       # -- Build the wrapper --
 
       - name: Install CxxWrap.jl
@@ -146,15 +137,27 @@ jobs:
 
       - name: Configure (Meson) (Windows)
         if: runner.os == 'Windows'
-        shell: bash
+        shell: msys2 {0}
         run: |
           meson setup builddir \
             --cmake-prefix-path=${{ steps.cxxwrap.outputs.prefix }} \
             --pkg-config-path=$GITHUB_WORKSPACE/giac-install/lib/pkgconfig \
             -Dgiac_include_dir=$GITHUB_WORKSPACE/giac-install/include
 
-      - name: Build
+      - name: Build (Linux/macOS)
+        if: runner.os != 'Windows'
         run: meson compile -C builddir
 
-      - name: Run tests
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: meson compile -C builddir
+
+      - name: Run tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: meson test -C builddir --verbose
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: meson test -C builddir --verbose
