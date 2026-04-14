@@ -1,5 +1,6 @@
 # libgiac-julia-wrapper
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/s-celles/libgiac-julia-wrapper)
 [![CI](https://github.com/s-celles/libgiac-julia-wrapper/actions/workflows/ci.yml/badge.svg)](https://github.com/s-celles/libgiac-julia-wrapper/actions/workflows/ci.yml)
 
 C++ wrapper for [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer algebra system, designed for Julia integration via [CxxWrap.jl](https://github.com/JuliaInterop/CxxWrap.jl).
