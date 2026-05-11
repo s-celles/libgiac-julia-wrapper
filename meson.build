@@ -1,5 +1,5 @@
 project('giac_wrapper', 'cpp',
-  version: '0.5.0',
+  version: '0.6.0',
   meson_version: '>= 1.2.0',
   license: 'GPL-3.0-or-later',
   default_options: [
@@ -7,6 +7,13 @@ project('giac_wrapper', 'cpp',
     'warning_level=2',
     'buildtype=release',
   ],
+)
+
+# Expose the project version to C++ so get_wrapper_version() never falls
+# out of sync with meson.build (issue #2).
+add_project_arguments(
+  '-DWRAPPER_VERSION="' + meson.project_version() + '"',
+  language: 'cpp',
 )
 
 # Find dependencies

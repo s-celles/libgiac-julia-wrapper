@@ -141,8 +141,13 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
         .method("expand", &Gen::expand)
         .method("factor", &Gen::factor);
 
-    // Register giac_eval free function
-    mod.method("giac_eval", &giac_eval);
+    // Register giac_eval free function (both overloads).
+    // The (expr) overload uses the singleton thread-local context; the
+    // (expr, ctx) overload provides per-context isolation (issue #3).
+    mod.method("giac_eval",
+        static_cast<Gen(*)(const std::string&)>(&giac_eval));
+    mod.method("giac_eval",
+        static_cast<Gen(*)(const std::string&, GiacContext&)>(&giac_eval));
 
     // Register generic dispatch functions (Tier 2)
     mod.method("apply_func0", &apply_func0);

@@ -44,6 +44,26 @@ TEST(context_isolation) {
     ASSERT_EQ("20", ctx2.get_variable("x"));
 }
 
+// Issue #3: free-function giac_eval(expr, ctx) — returns a Gen and
+// preserves per-context isolation. Binding `a := 5` through one context
+// must NOT be visible to a fresh context.
+TEST(giac_eval_with_context_returns_gen) {
+    GiacContext ctx1;
+    GiacContext ctx2;
+
+    // Bind in ctx1 via the new context-aware giac_eval.
+    Gen r1 = giac_eval("ctx_iso_a := 7", ctx1);
+    ASSERT_EQ("7", r1.to_string());
+
+    // Reading the same name in ctx1 sees the binding.
+    Gen r1_read = giac_eval("ctx_iso_a", ctx1);
+    ASSERT_EQ("7", r1_read.to_string());
+
+    // ctx2 is independent — the same name is still the unbound symbol.
+    Gen r2_read = giac_eval("ctx_iso_a", ctx2);
+    ASSERT_EQ("ctx_iso_a", r2_read.to_string());
+}
+
 // Test timeout configuration
 TEST(timeout_config) {
     GiacContext ctx;
@@ -84,6 +104,7 @@ int main() {
 
     RUN_TEST(variable_assignment);
     RUN_TEST(context_isolation);
+    RUN_TEST(giac_eval_with_context_returns_gen);
     RUN_TEST(timeout_config);
     RUN_TEST(precision_config);
     RUN_TEST(complex_mode);

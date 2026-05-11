@@ -17,7 +17,10 @@ end
     @testset "Version Functions" begin
         @test giac_version() isa String
         @test !isempty(giac_version())
-        @test wrapper_version() == "0.1.0"
+        # Issue #2: wrapper_version() now reads from meson.project_version()
+        # at build time, so it never falls out of sync with meson.build.
+        # Accept any SemVer-shaped string instead of a hardcoded literal.
+        @test occursin(r"^\d+\.\d+\.\d+", wrapper_version())
     end
 
     @testset "GIAC Availability" begin

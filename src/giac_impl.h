@@ -20,7 +20,8 @@ namespace giac_julia {
 // Forward declaration of opaque types
 struct GiacContextImpl;
 struct GenImpl;
-class Gen;  // Forward declaration for free functions
+class Gen;           // Forward declaration for free functions
+class GiacContext;   // Forward declaration for free functions taking a context
 
 // ============================================================================
 // Version Functions
@@ -49,8 +50,20 @@ int help_count();
  * @param expr Expression string (e.g., "sin(x)+1", "[[1,2],[3,4]]")
  * @return Evaluated Gen
  * @note This is the preferred entry point for string expressions
+ * @note Uses a process-wide singleton context; use the (expr, ctx)
+ *       overload below for per-context isolation.
  */
 Gen giac_eval(const std::string& expr);
+
+/**
+ * @brief Parse and evaluate a Giac expression string in a specific context
+ * @param expr Expression string
+ * @param ctx Context whose state (variable bindings, configuration) is
+ *            used and updated by this evaluation. Two distinct GiacContext
+ *            instances do not share `:=` bindings, enabling true isolation.
+ * @return Evaluated Gen
+ */
+Gen giac_eval(const std::string& expr, GiacContext& ctx);
 
 // ============================================================================
 // Generic Dispatch (Tier 2)
@@ -291,6 +304,9 @@ public:
 
 private:
     std::unique_ptr<GiacContextImpl> impl_;
+
+    // Free function that needs access to the underlying giac::context*.
+    friend Gen giac_eval(const std::string& expr, GiacContext& ctx);
 };
 
 // ============================================================================
@@ -403,6 +419,7 @@ private:
 
     // Friend functions that need access to private constructor
     friend Gen giac_eval(const std::string& expr);
+    friend Gen giac_eval(const std::string& expr, GiacContext& ctx);
     friend Gen apply_func0(const std::string& name);
     friend Gen apply_func1(const std::string& name, const Gen& arg);
     friend Gen apply_func2(const std::string& name, const Gen& arg1, const Gen& arg2);
