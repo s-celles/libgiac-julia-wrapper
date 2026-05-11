@@ -61,7 +61,12 @@ TEST(error_handling) {
 TEST(version_functions) {
     std::string gv = get_giac_version();
     std::string wv = get_wrapper_version();
-    ASSERT_EQ("0.1.0", wv);
+    // Issue #2: wrapper_version() now comes from meson.project_version()
+    // at build time. Check it is non-empty and SemVer-shaped (X.Y.Z...)
+    // rather than pinning a literal.
+    assert(!wv.empty());
+    assert(wv != "unknown");
+    assert(wv.find('.') != std::string::npos);
     // GIAC version should be non-empty
     assert(!gv.empty());
 }

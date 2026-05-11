@@ -32,6 +32,23 @@ end
         @test get_variable(ctx2, "x") == "20"
     end
 
+    # Issue #3: the new free-function `giac_eval(expr, ctx)` returns a Gen
+    # and preserves per-context isolation of `:=` bindings.
+    @testset "giac_eval(expr, ctx) — returns Gen and isolates bindings" begin
+        ctx1 = GiacContext()
+        ctx2 = GiacContext()
+
+        # Bind via the new overload, exercised from Julia.
+        r1 = giac_eval("ctx_iso_b := 11", ctx1)
+        @test to_string(r1) == "11"
+
+        # ctx1 sees the binding.
+        @test to_string(giac_eval("ctx_iso_b", ctx1)) == "11"
+
+        # ctx2 is independent — still the unbound symbol.
+        @test to_string(giac_eval("ctx_iso_b", ctx2)) == "ctx_iso_b"
+    end
+
     @testset "Timeout Configuration" begin
         ctx = GiacContext()
 

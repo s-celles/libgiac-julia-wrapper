@@ -96,7 +96,11 @@ std::string get_giac_version() {
 }
 
 std::string get_wrapper_version() {
-    return "0.1.0";
+#ifdef WRAPPER_VERSION
+    return WRAPPER_VERSION;
+#else
+    return "unknown";
+#endif
 }
 
 bool check_giac_available() {
@@ -159,6 +163,18 @@ Gen giac_eval(const std::string& expr) {
     giac::gen parsed = giac::gen(expr, &ctx);
     giac::gen result = giac::eval(parsed, &ctx);
     return Gen(std::make_unique<GenImpl>(result));
+}
+
+Gen giac_eval(const std::string& expr, GiacContext& ctx) {
+    initialize_giac_library();
+    giac::context* gctx = ctx.impl_->ctx;
+    try {
+        giac::gen parsed = giac::gen(expr, gctx);
+        giac::gen result = giac::eval(parsed, gctx);
+        return Gen(std::make_unique<GenImpl>(result));
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("GIAC evaluation error: ") + e.what());
+    }
 }
 
 // ============================================================================
