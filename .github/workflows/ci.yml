@@ -230,10 +230,15 @@ jobs:
           ls -la probe_default.exe 2>&1 || echo "(no probe_default.exe)"
           echo "--- DLL deps of probe_default.exe: ---"
           objdump -p probe_default.exe 2>&1 | grep -i "DLL Name" | head -20
-          echo "--- runtime PATH (truncated): ---"
-          echo "$RUN_PATH" | tr ':' '\n' | head -6
+          echo "--- libgiac-0.dll transitive deps: ---"
+          objdump -p "${GIAC_U}/bin/libgiac-0.dll" 2>&1 | grep -i "DLL Name" | head -20
+          echo "--- full runtime PATH: ---"
+          echo "$RUN_PATH" | tr ':' '\n'
           export PATH="$RUN_PATH"
-          ./probe_default.exe 2>&1 || echo "[probe_default exited non-zero: $?]"
+          echo "--- attempt 1: ./probe_default.exe ---"
+          ./probe_default.exe 2>&1 ; echo "[exit: $?]"
+          echo "--- attempt 2: cmd //c probe_default.exe ---"
+          cmd //c "probe_default.exe & echo EXITCODE=%ERRORLEVEL%" 2>&1 ; echo "[bash sees exit: $?]"
           export PATH="$ORIG_PATH"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
