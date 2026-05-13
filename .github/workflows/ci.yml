@@ -218,17 +218,20 @@ jobs:
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
           LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
-          # Save MSYS2's original PATH — adding $CXXWRAP_PREFIX/bin and
-          # $JULIA_BINDIR pollutes the runtime DLL search and makes
-          # cc1plus.exe load Julia's stale MinGW DLLs at startup, crashing
-          # the compile silently. Compile in pristine PATH, only extend at
-          # run time.
+          # Compile in pristine MSYS2 PATH (no Julia/CxxWrap DLLs polluting
+          # cc1plus's runtime). At run time, MSYS2 stays first; only
+          # GIAC_jll's bin is appended for libgiac-0.dll resolution.
           ORIG_PATH="$PATH"
-          RUN_PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):$ORIG_PATH"
+          RUN_PATH="$ORIG_PATH:$(cygpath -u "$GIAC_ARTIFACT/bin")"
 
           echo "==== Default (current GIAC_jll layout) ===="
           g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe 2>&1
           echo "[default compile exit: $?]"
+          ls -la probe_default.exe 2>&1 || echo "(no probe_default.exe)"
+          echo "--- DLL deps of probe_default.exe: ---"
+          objdump -p probe_default.exe 2>&1 | grep -i "DLL Name" | head -20
+          echo "--- runtime PATH (truncated): ---"
+          echo "$RUN_PATH" | tr ':' '\n' | head -6
           export PATH="$RUN_PATH"
           ./probe_default.exe 2>&1 || echo "[probe_default exited non-zero: $?]"
           export PATH="$ORIG_PATH"
