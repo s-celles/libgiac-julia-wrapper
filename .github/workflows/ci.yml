@@ -187,14 +187,23 @@ jobs:
         env:
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
         run: |
-          INC="-I${GIAC_ARTIFACT}/include/giac -I${GIAC_ARTIFACT}/include"
+          set +e  # collect as much diagnostic output as possible
+          # On macOS, brew-installed gmp/mpfr live outside the default include
+          # path. CPATH covers gettext but not gmp/mpfr.
+          EXTRA_INC=""
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+              EXTRA_INC="-I$(brew --prefix gmp)/include -I$(brew --prefix mpfr)/include"
+          fi
+          INC="-I${GIAC_ARTIFACT}/include/giac -I${GIAC_ARTIFACT}/include $EXTRA_INC"
           LD="-L${GIAC_ARTIFACT}/lib -lgiac -lgmp -lmpfr -Wl,-rpath,${GIAC_ARTIFACT}/lib"
           echo "==== Default (current GIAC_jll layout) ===="
-          c++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default
+          c++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default \
+              || { echo "[default compile failed: $?]"; }
           ./probe_default || echo "[probe_default exited non-zero: $?]"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
-          c++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits
+          c++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits \
+              || { echo "[8bits compile failed: $?]"; }
           ./probe_8bits || echo "[probe_8bits exited non-zero: $?]"
 
       - name: Probe giac::gen layout (Windows — diagnostic)
@@ -203,15 +212,29 @@ jobs:
         shell: msys2 {0}
         env:
           GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+          CXXWRAP_PREFIX: ${{ steps.deps.outputs.cxxwrap_prefix }}
+          JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
+          set +e  # collect as much diagnostic output as possible
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
-          export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$PATH"
+          export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):${PWD}/builddir/src:$PATH"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
           LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
+          echo "--- DLLs in GIAC_jll bin: ---"
+          ls -la "${GIAC_U}/bin"/*.dll 2>/dev/null | head -20 || echo "(no bin DLLs)"
+          echo "--- DLLs in GIAC_jll lib: ---"
+          ls -la "${GIAC_U}/lib"/*.dll* 2>/dev/null | head -20 || echo "(no lib DLLs)"
+          echo "--- Import lib for giac: ---"
+          ls -la "${GIAC_U}/lib"/libgiac* 2>/dev/null | head -10 || echo "(no libgiac files)"
+          echo ""
           echo "==== Default (current GIAC_jll layout) ===="
-          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe
+          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe \
+              || { echo "[default compile failed: $?]"; }
+          echo "--- probe_default.exe DLL dependencies (via objdump): ---"
+          objdump -p probe_default.exe 2>/dev/null | grep -i "DLL Name" | head -20 || echo "(no objdump output)"
           ./probe_default.exe || echo "[probe_default exited non-zero: $?]"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
-          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe
+          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe \
+              || { echo "[8bits compile failed: $?]"; }
           ./probe_8bits.exe || echo "[probe_8bits exited non-zero: $?]"
