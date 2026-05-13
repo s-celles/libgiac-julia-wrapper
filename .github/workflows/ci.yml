@@ -234,17 +234,26 @@ jobs:
           echo "--- g++ version ---"
           g++ --version 2>&1 | head -2
           echo ""
+          echo "--- Sanity check: trivial hello world ---"
+          echo 'int main(){return 0;}' > /tmp/hello.cpp
+          g++ /tmp/hello.cpp -o /tmp/hello.exe > /tmp/hello_out.log 2> /tmp/hello_err.log
+          echo "[hello compile exit: $?]"
+          echo "  stderr ($(wc -c < /tmp/hello_err.log) bytes):"
+          cat /tmp/hello_err.log
+          ls -la /tmp/hello.exe 2>&1 | head -1 || echo "(no /tmp/hello.exe)"
+          /tmp/hello.exe; echo "  hello.exe exit: $?"
+          echo ""
           echo "==== Default (current GIAC_jll layout) ===="
           set -x
-          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe > /tmp/gpp_out.log 2> /tmp/gpp_err.log
+          g++ -v -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe > /tmp/gpp_out.log 2> /tmp/gpp_err.log
           compile_exit=$?
           set +x
           echo "[default compile exit: $compile_exit]"
-          echo "--- g++ stdout: ---"
-          cat /tmp/gpp_out.log 2>/dev/null || echo "(empty)"
-          echo "--- g++ stderr: ---"
-          cat /tmp/gpp_err.log 2>/dev/null || echo "(empty)"
-          echo "--- g++ stderr size: $(wc -c < /tmp/gpp_err.log 2>/dev/null || echo '?') bytes"
+          echo "--- g++ stdout (size $(wc -c < /tmp/gpp_out.log)): ---"
+          cat /tmp/gpp_out.log 2>/dev/null
+          echo "--- g++ stderr (size $(wc -c < /tmp/gpp_err.log)): ---"
+          cat /tmp/gpp_err.log 2>/dev/null
+          echo "--- end of g++ output ---"
           ls -la probe_default.exe 2>&1 || echo "(no probe_default.exe)"
           ./probe_default.exe 2>&1 || echo "[probe_default exited non-zero: $?]"
           echo ""
