@@ -215,11 +215,9 @@ jobs:
           JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
           set +e  # collect as much diagnostic output as possible
-          # libgiac-0.dll has a transitive dep on libintl-8.dll (from
-          # gettext). MSYS2 setup didn't install gettext so the probe
-          # binary fails at DLL loader stage. Install it now.
-          pacman -S --noconfirm --needed mingw-w64-x86_64-gettext 2>&1 | tail -3
-          ls /mingw64/bin/libintl*.dll 2>&1 || echo "(still no libintl)"
+          # libgiac-0.dll's transitive deps include libintl-8.dll (gettext).
+          # Install gettext + ntldd (Windows ldd-like for DLL resolution debug).
+          pacman -S --noconfirm --needed mingw-w64-x86_64-gettext mingw-w64-x86_64-ntldd 2>&1 | tail -3
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
           LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
@@ -241,6 +239,9 @@ jobs:
           echo "$RUN_PATH" | tr ':' '\n'
           export PATH="$RUN_PATH"
           rm -f probe_output_default.log probe_output_8bits.log
+          echo "--- ntldd -R probe_default.exe (full DLL resolution): ---"
+          ntldd.exe -R probe_default.exe 2>&1 | head -40
+          echo "--- end ntldd ---"
           ./probe_default.exe > probe_default_stdout.log 2> probe_default_stderr.log
           echo "[probe_default exit: $?]  stdout=$(wc -c < probe_default_stdout.log)B  stderr=$(wc -c < probe_default_stderr.log)B"
           echo "--- captured stdout (from launcher): ---"; cat probe_default_stdout.log
