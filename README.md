@@ -3,7 +3,7 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/s-celles/libgiac-julia-wrapper)
 [![CI](https://github.com/s-celles/libgiac-julia-wrapper/actions/workflows/ci.yml/badge.svg)](https://github.com/s-celles/libgiac-julia-wrapper/actions/workflows/ci.yml)
 
-C++ wrapper exposing the [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer algebra system to Julia via [CxxWrap.jl](https://github.com/JuliaInterop/CxxWrap.jl). Normally consumed through [Giac.jl](https://github.com/s-celles/Giac.jl); this repository builds the native shared library that Giac.jl loads.
+C++ wrapper exposing the [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer algebra system to Julia via [CxxWrap.jl](https://github.com/JuliaInterop/CxxWrap.jl). Normally consumed through [Giac.jl](https://github.com/s-celles/Giac.jl), which pulls a pre-built binary of this wrapper from [`libgiac_julia_jll`](https://github.com/JuliaPackaging/Yggdrasil/tree/master/L/libgiac_julia) (built by BinaryBuilder against `GIAC_jll`'s runtime). This repository is what you build locally if you are contributing to the wrapper itself.
 
 ## Features
 
@@ -35,7 +35,9 @@ C++ wrapper exposing the [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer a
 
 - Warning handler hooks: `set_warning_handler`, `clear_warning_handler` for routing giac warnings into custom callbacks.
 - Config: `set_xcasroot/get_xcasroot`. Per-context `set_variable/get_variable` are implemented; `set_timeout/set_precision/set_complex_mode` are accepted but currently stubs (see TODOs in `src/giac_impl.cpp`).
-- Linux and macOS in CI (Ubuntu + macOS, fully green). Windows builds in CI but tests run as `continue-on-error` owing to an MSYS2 GCC 15 vs GIAC_jll GCC 8 ABI mismatch; from Julia + GIAC_jll at runtime, Windows usage is unaffected.
+- **Linux and macOS** in CI (Ubuntu + macOS) are fully green. **Windows has a known ABI issue** that affects production Julia usage, not just CI:
+  - In CI, Windows builds the wrapper locally under MSYS2 (currently GCC 15.2) and links against `GIAC_jll` (BinaryBuilder GCC 8). The mismatch with the artifact's runtime DLLs makes the test step fail, so it runs as `continue-on-error`.
+  - For end users on Windows, the production path is `libgiac_julia_jll` (BinaryBuilder GCC 10) + `GIAC_jll` (BinaryBuilder GCC 8). Even though both come from BinaryBuilder, a bitfield layout difference in giac's `gen` struct still leaks across the boundary: MPFR reals come back tagged as `_DOUBLE_` instead of `_REAL_`. Surfaced while reviewing [Giac.jl#22](https://github.com/s-celles/Giac.jl/pull/22); a string-length heuristic in Giac.jl is the current workaround. A proper fix likely requires rebuilding `GIAC_jll` with the same `preferred_gcc_version` as `libgiac_julia_jll`.
 
 ## Requirements
 
