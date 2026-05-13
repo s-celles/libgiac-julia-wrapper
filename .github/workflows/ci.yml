@@ -235,10 +235,16 @@ jobs:
           echo "--- full runtime PATH: ---"
           echo "$RUN_PATH" | tr ':' '\n'
           export PATH="$RUN_PATH"
-          echo "--- attempt 1: ./probe_default.exe ---"
-          ./probe_default.exe 2>&1 ; echo "[exit: $?]"
-          echo "--- attempt 2: cmd //c probe_default.exe ---"
-          cmd //c "probe_default.exe & echo EXITCODE=%ERRORLEVEL%" 2>&1 ; echo "[bash sees exit: $?]"
+          echo "--- attempt 1: ./probe_default.exe > files ---"
+          ./probe_default.exe > probe_out.log 2> probe_err.log
+          echo "[exit: $?] stdout=$(wc -c < probe_out.log) bytes, stderr=$(wc -c < probe_err.log) bytes"
+          echo "STDOUT:"; cat probe_out.log
+          echo "STDERR:"; cat probe_err.log
+          echo "--- attempt 2: cmd //c probe_default.exe > files ---"
+          cmd //c "probe_default.exe > probe_out2.log 2> probe_err2.log"
+          echo "[bash sees exit: $?] stdout=$(wc -c < probe_out2.log) stderr=$(wc -c < probe_err2.log)"
+          echo "STDOUT:"; cat probe_out2.log
+          echo "STDERR:"; cat probe_err2.log
           export PATH="$ORIG_PATH"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
