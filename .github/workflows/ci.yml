@@ -220,7 +220,12 @@ jobs:
           pacman -S --noconfirm --needed mingw-w64-x86_64-gettext mingw-w64-x86_64-ntldd 2>&1 | tail -3
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
-          LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
+          # STATIC LINK: pull libgiac.a directly into the binary so we
+          # bypass the libgiac-0.dll runtime ABI mismatch between
+          # BinaryBuilder GCC 8 and MSYS2 GCC 15.2. gmp/mpfr/intl/iconv
+          # stay dynamic from MSYS2 — they're stable enough across
+          # versions and libgiac.a links against their import libs.
+          LD="${GIAC_U}/lib/libgiac.a -lgmp -lmpfr -lintl -liconv -lpthread"
           # Compile in pristine MSYS2 PATH (no Julia/CxxWrap DLLs polluting
           # cc1plus's runtime). At run time, MSYS2 stays first; only
           # GIAC_jll's bin is appended for libgiac-0.dll resolution.
