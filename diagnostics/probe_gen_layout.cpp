@@ -19,8 +19,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
+#include <ostream>
 #include <type_traits>
 
 // SFINAE: is &g.type well-formed? (Bitfields are not addressable.)
@@ -39,7 +41,49 @@ static void dump_bytes(const std::uint8_t* p, std::size_t n) {
     std::cout << std::dec << std::setfill(' ');
 }
 
+// Tee streambuf — writes every byte to BOTH stdout AND a file. We need
+// this because on Windows MSYS2, launching the probe from CI's bash
+// shell appears to swallow stdout entirely (exit 127, empty captured
+// streams). Writing through a file we control bypasses the launcher.
+class tee_streambuf : public std::streambuf {
+    std::streambuf* a_;
+    std::streambuf* b_;
+public:
+    tee_streambuf(std::streambuf* a, std::streambuf* b) : a_(a), b_(b) {}
+protected:
+    int overflow(int c) override {
+        if (c == EOF) return EOF;
+        if (a_) a_->sputc(static_cast<char>(c));
+        if (b_) b_->sputc(static_cast<char>(c));
+        return c;
+    }
+    int sync() override {
+        int r1 = a_ ? a_->pubsync() : 0;
+        int r2 = b_ ? b_->pubsync() : 0;
+        return (r1 == 0 && r2 == 0) ? 0 : -1;
+    }
+};
+
 int main() {
+    // Mirror everything we cout to a file so we capture output even when
+    // the launcher swallows stdout/stderr (Windows MSYS2).
+#ifdef GIAC_TYPE_ON_8BITS
+    const char* log_path = "probe_output_8bits.log";
+#else
+    const char* log_path = "probe_output_default.log";
+#endif
+    std::ofstream probe_log(log_path);
+    std::streambuf* original_cout_buf = std::cout.rdbuf();
+    tee_streambuf tee(original_cout_buf, probe_log.rdbuf());
+    std::cout.rdbuf(&tee);
+    // RAII guard: restore cout's original rdbuf BEFORE `tee` / `probe_log`
+    // go out of scope. Otherwise their destruction leaves cout pointing at
+    // freed streambufs and process exit segfaults inside std::ios_base.
+    struct CoutGuard {
+        std::streambuf* orig;
+        ~CoutGuard() { std::cout.rdbuf(orig); }
+    } cout_guard{original_cout_buf};
+
 #ifdef GIAC_TYPE_ON_8BITS
     std::cout << "=== Mode: -DGIAC_TYPE_ON_8BITS (proposed fix) ===\n";
 #else
