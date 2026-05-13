@@ -123,5 +123,61 @@ int main() {
               << std::setfill('0') << (int)bytes[0]
               << std::dec << std::setfill(' ') << "\n";
 
+    // -----------------------------------------------------------------
+    // Live-gen probe: actually evaluate expressions through giac and
+    // inspect the type tag of the resulting gen. This directly tests
+    // the Giac.jl#22 symptom ("MPFR real comes back tagged _DOUBLE_").
+    // -----------------------------------------------------------------
+
+    auto tag_name = [](int t) -> const char* {
+        switch (t) {
+            case giac::_INT_:    return "_INT_";
+            case giac::_DOUBLE_: return "_DOUBLE_";
+            case giac::_ZINT:    return "_ZINT";
+            case giac::_REAL:    return "_REAL";
+            case giac::_CPLX:    return "_CPLX";
+            case giac::_SYMB:    return "_SYMB";
+            case giac::_VECT:    return "_VECT";
+            case giac::_FRAC:    return "_FRAC";
+            case giac::_STRNG:   return "_STRNG";
+            default:             return "?";
+        }
+    };
+
+    std::cout << "\n=== Live-gen probe (evaluates expressions via giac) ===\n";
+    std::cout << "  _DOUBLE_=" << giac::_DOUBLE_
+              << ", _REAL=" << giac::_REAL << "\n";
+
+    // Wrapper-style intentional leak — never delete to avoid teardown
+    // crashes (matches what libgiac-julia-wrapper does).
+    giac::context* ctx = new giac::context();
+
+    const char* exprs[] = {
+        "1.0",              // expected _DOUBLE_
+        "evalf(pi)",        // default precision — expected _DOUBLE_
+        "evalf(pi, 30)",    // moderate precision — expected _REAL on Linux
+        "evalf(pi, 50)",    // high precision — expected _REAL on Linux
+        "evalf(sqrt(2), 80)" // very high — definitely _REAL on Linux
+    };
+    for (const char* e : exprs) {
+        try {
+            giac::gen parsed(e, ctx);
+            giac::gen result = giac::eval(parsed, ctx);
+            auto rb = reinterpret_cast<const std::uint8_t*>(&result);
+            std::cout << "  " << std::setw(22) << std::left << e
+                      << " -> type=" << (int)result.type
+                      << " (" << tag_name(result.type) << ")"
+                      << "  bytes[0..3]=";
+            for (int i = 0; i < 4; ++i) {
+                std::cout << std::hex << std::setw(2) << std::setfill('0')
+                          << (int)rb[i] << " ";
+            }
+            std::cout << std::dec << std::setfill(' ')
+                      << " print=\"" << result.print(ctx) << "\"\n";
+        } catch (const std::exception& ex) {
+            std::cout << "  " << e << "  -> EXCEPTION: " << ex.what() << "\n";
+        }
+    }
+
     return 0;
 }
