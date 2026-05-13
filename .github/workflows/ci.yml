@@ -215,6 +215,11 @@ jobs:
           JULIA_BINDIR: ${{ steps.deps.outputs.julia_bindir }}
         run: |
           set +e  # collect as much diagnostic output as possible
+          # libgiac-0.dll has a transitive dep on libintl-8.dll (from
+          # gettext). MSYS2 setup didn't install gettext so the probe
+          # binary fails at DLL loader stage. Install it now.
+          pacman -S --noconfirm --needed mingw-w64-x86_64-gettext 2>&1 | tail -3
+          ls /mingw64/bin/libintl*.dll 2>&1 || echo "(still no libintl)"
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
           LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
