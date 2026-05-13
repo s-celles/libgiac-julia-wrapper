@@ -22,3 +22,7 @@
 !.github/
 !.github/workflows/
 !.github/workflows/*.yml
+
+# Temporary diagnostic — remove once Giac.jl#22 is resolved.
+!diagnostics/
+!diagnostics/*.cpp

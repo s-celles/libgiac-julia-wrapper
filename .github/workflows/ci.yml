@@ -175,3 +175,43 @@ jobs:
         run: |
           export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):$PATH"
           meson test -C builddir --verbose
+
+      # -- Temporary diagnostic for Giac.jl#22 (MPFR-as-DOUBLE on Windows) --
+      # Probes giac::gen struct layout against the installed GIAC_jll
+      # headers, with and without -DGIAC_TYPE_ON_8BITS. Remove this block
+      # (and diagnostics/probe_gen_layout.cpp) once the bug is diagnosed.
+
+      - name: Probe giac::gen layout (Linux/macOS — baseline)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        env:
+          GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+        run: |
+          INC="-I${GIAC_ARTIFACT}/include/giac -I${GIAC_ARTIFACT}/include"
+          LD="-L${GIAC_ARTIFACT}/lib -lgiac -lgmp -lmpfr -Wl,-rpath,${GIAC_ARTIFACT}/lib"
+          echo "==== Default (current GIAC_jll layout) ===="
+          c++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default
+          ./probe_default
+          echo ""
+          echo "==== With -DGIAC_TYPE_ON_8BITS ===="
+          c++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits
+          ./probe_8bits
+
+      - name: Probe giac::gen layout (Windows — diagnostic)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: msys2 {0}
+        env:
+          GIAC_ARTIFACT: ${{ steps.deps.outputs.giac_artifact }}
+        run: |
+          GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
+          export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$PATH"
+          INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
+          LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
+          echo "==== Default (current GIAC_jll layout) ===="
+          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe
+          ./probe_default.exe
+          echo ""
+          echo "==== With -DGIAC_TYPE_ON_8BITS ===="
+          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe
+          ./probe_8bits.exe
