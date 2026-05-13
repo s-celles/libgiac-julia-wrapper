@@ -216,49 +216,25 @@ jobs:
         run: |
           set +e  # collect as much diagnostic output as possible
           GIAC_U="$(cygpath -u "$GIAC_ARTIFACT")"
-          export PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):${PWD}/builddir/src:$PATH"
           INC="-I${GIAC_U}/include/giac -I${GIAC_U}/include"
           LD="-L${GIAC_U}/lib -lgiac -lgmp -lmpfr"
-          echo "--- DLLs in GIAC_jll bin: ---"
-          ls -la "${GIAC_U}/bin"/*.dll 2>/dev/null | head -20 || echo "(no bin DLLs)"
-          echo "--- DLLs in GIAC_jll lib: ---"
-          ls -la "${GIAC_U}/lib"/*.dll* 2>/dev/null | head -20 || echo "(no lib DLLs)"
-          echo "--- Import lib for giac: ---"
-          ls -la "${GIAC_U}/lib"/libgiac* 2>/dev/null | head -10 || echo "(no libgiac files)"
-          echo ""
-          echo "--- pwd & source presence ---"
-          pwd
-          ls -la diagnostics/ 2>&1 || echo "(no diagnostics dir)"
-          echo "--- INC = $INC"
-          echo "--- LD  = $LD"
-          echo "--- g++ version ---"
-          g++ --version 2>&1 | head -2
-          echo ""
-          echo "--- Sanity check: trivial hello world ---"
-          echo 'int main(){return 0;}' > /tmp/hello.cpp
-          g++ /tmp/hello.cpp -o /tmp/hello.exe > /tmp/hello_out.log 2> /tmp/hello_err.log
-          echo "[hello compile exit: $?]"
-          echo "  stderr ($(wc -c < /tmp/hello_err.log) bytes):"
-          cat /tmp/hello_err.log
-          ls -la /tmp/hello.exe 2>&1 | head -1 || echo "(no /tmp/hello.exe)"
-          /tmp/hello.exe; echo "  hello.exe exit: $?"
-          echo ""
+          # Save MSYS2's original PATH — adding $CXXWRAP_PREFIX/bin and
+          # $JULIA_BINDIR pollutes the runtime DLL search and makes
+          # cc1plus.exe load Julia's stale MinGW DLLs at startup, crashing
+          # the compile silently. Compile in pristine PATH, only extend at
+          # run time.
+          ORIG_PATH="$PATH"
+          RUN_PATH="$(cygpath -u "$GIAC_ARTIFACT/bin"):$(cygpath -u "$CXXWRAP_PREFIX/bin"):$(cygpath -u "$JULIA_BINDIR"):$ORIG_PATH"
+
           echo "==== Default (current GIAC_jll layout) ===="
-          set -x
-          g++ -v -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe > /tmp/gpp_out.log 2> /tmp/gpp_err.log
-          compile_exit=$?
-          set +x
-          echo "[default compile exit: $compile_exit]"
-          echo "--- g++ stdout (size $(wc -c < /tmp/gpp_out.log)): ---"
-          cat /tmp/gpp_out.log 2>/dev/null
-          echo "--- g++ stderr (size $(wc -c < /tmp/gpp_err.log)): ---"
-          cat /tmp/gpp_err.log 2>/dev/null
-          echo "--- end of g++ output ---"
-          ls -la probe_default.exe 2>&1 || echo "(no probe_default.exe)"
+          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe 2>&1
+          echo "[default compile exit: $?]"
+          export PATH="$RUN_PATH"
           ./probe_default.exe 2>&1 || echo "[probe_default exited non-zero: $?]"
+          export PATH="$ORIG_PATH"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
-          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe 2> /tmp/gpp_err.log
+          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe 2>&1
           echo "[8bits compile exit: $?]"
-          echo "--- g++ stderr: ---"; cat /tmp/gpp_err.log 2>/dev/null || echo "(empty)"
+          export PATH="$RUN_PATH"
           ./probe_8bits.exe 2>&1 || echo "[probe_8bits exited non-zero: $?]"
