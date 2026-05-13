@@ -64,6 +64,39 @@ TEST(giac_eval_with_context_returns_gen) {
     ASSERT_EQ("ctx_iso_a", r2_read.to_string());
 }
 
+// Issue #3 regression (MCP scenario): binding `y` in one context must not
+// poison `desolve(..., y)` in a fresh, independent context. Under the
+// pre-fix singleton-context behavior, this combination produced
+// `Error: Dependent variable assigned. Run purge(y)`.
+TEST(issue3_bound_var_does_not_poison_desolve_in_other_context) {
+    GiacContext ctx_with_binding;
+    GiacContext ctx_fresh;
+
+    // Establish the binding that used to leak.
+    (void) giac_eval("y := 42", ctx_with_binding);
+
+    // In a fresh, independent context, a desolve referencing y must work.
+    // (Calling this same desolve in ctx_with_binding throws
+    // "Dependent variable assigned. Run purge(y)" — verified manually.)
+    Gen result = giac_eval("desolve(diff(y,t)=cos(t), t, y)", ctx_fresh);
+    std::string s = result.to_string();
+
+    if (s.find("Dependent variable") != std::string::npos) {
+        throw std::runtime_error(
+            "desolve in ctx_fresh was poisoned by ctx_with_binding's binding: "
+            + s
+        );
+    }
+    if (s.empty()) {
+        throw std::runtime_error("desolve returned an empty result string");
+    }
+
+    // And ctx_with_binding still holds y = 42 — bindings inside a context
+    // persist across calls within that context.
+    Gen y_in_ctx1 = giac_eval("y", ctx_with_binding);
+    ASSERT_EQ("42", y_in_ctx1.to_string());
+}
+
 // Test timeout configuration
 TEST(timeout_config) {
     GiacContext ctx;
@@ -105,6 +138,7 @@ int main() {
     RUN_TEST(variable_assignment);
     RUN_TEST(context_isolation);
     RUN_TEST(giac_eval_with_context_returns_gen);
+    RUN_TEST(issue3_bound_var_does_not_poison_desolve_in_other_context);
     RUN_TEST(timeout_config);
     RUN_TEST(precision_config);
     RUN_TEST(complex_mode);

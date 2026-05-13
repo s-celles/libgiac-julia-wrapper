@@ -9,6 +9,7 @@ C++ wrapper for [GIAC](https://xcas.univ-grenoble-alpes.fr/) computer algebra sy
 
 - String-based expression evaluation
 - Context management for variable persistence
+- Per-context evaluation via `giac_eval(expr, ctx)` so distinct `GiacContext` instances isolate `:=` bindings ([#3](https://github.com/s-celles/libgiac-julia-wrapper/issues/3))
 - Native Gen object manipulation
 - Support for Linux, macOS, and Windows
 
