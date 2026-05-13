@@ -235,14 +235,21 @@ jobs:
           g++ --version 2>&1 | head -2
           echo ""
           echo "==== Default (current GIAC_jll layout) ===="
-          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe 2>&1
-          echo "[default compile exit: $?]"
+          set -x
+          g++ -std=c++17 $INC diagnostics/probe_gen_layout.cpp $LD -o probe_default.exe > /tmp/gpp_out.log 2> /tmp/gpp_err.log
+          compile_exit=$?
+          set +x
+          echo "[default compile exit: $compile_exit]"
+          echo "--- g++ stdout: ---"
+          cat /tmp/gpp_out.log 2>/dev/null || echo "(empty)"
+          echo "--- g++ stderr: ---"
+          cat /tmp/gpp_err.log 2>/dev/null || echo "(empty)"
+          echo "--- g++ stderr size: $(wc -c < /tmp/gpp_err.log 2>/dev/null || echo '?') bytes"
           ls -la probe_default.exe 2>&1 || echo "(no probe_default.exe)"
-          echo "--- probe_default.exe DLL dependencies (via objdump): ---"
-          objdump -p probe_default.exe 2>&1 | grep -i "DLL Name" | head -20 || echo "(no objdump output)"
           ./probe_default.exe 2>&1 || echo "[probe_default exited non-zero: $?]"
           echo ""
           echo "==== With -DGIAC_TYPE_ON_8BITS ===="
-          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe 2>&1
+          g++ -std=c++17 -DGIAC_TYPE_ON_8BITS $INC diagnostics/probe_gen_layout.cpp $LD -o probe_8bits.exe 2> /tmp/gpp_err.log
           echo "[8bits compile exit: $?]"
+          echo "--- g++ stderr: ---"; cat /tmp/gpp_err.log 2>/dev/null || echo "(empty)"
           ./probe_8bits.exe 2>&1 || echo "[probe_8bits exited non-zero: $?]"
