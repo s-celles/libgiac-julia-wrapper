@@ -1,36 +1,27 @@
 # test_gen.jl
 # Tests for Gen objects (User Story 3)
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 @testset "GIAC Wrapper Gen Tests" begin
+    # The single-arg Gen(::String) constructor uses the wrapper's thread-local
+    # default context. There is no Gen(::String, ::GiacContext) overload
+    # registered with CxxWrap, so these tests do NOT pass a context.
+
     @testset "Gen Construction" begin
-        ctx = GiacContext()
-        g = Gen("x^2", ctx)
-        @test to_string(g) isa String
+        g = Gen("x^2")
+        @test to_string(g) isa AbstractString
     end
 
     @testset "Gen Type Query" begin
-        ctx = GiacContext()
-        g = Gen("42", ctx)
+        g = Gen("42")
         @test type(g) == 0  # Integer type
         @test type_name(g) == "integer"
     end
 
     @testset "Gen Arithmetic" begin
-        ctx = GiacContext()
-        a = Gen("x", ctx)
-        b = Gen("y", ctx)
+        a = Gen("x")
+        b = Gen("y")
 
         sum = a + b
         @test occursin("x", to_string(sum))
@@ -38,8 +29,7 @@ end
     end
 
     @testset "Gen Operations" begin
-        ctx = GiacContext()
-        g = Gen("x^2 - 1", ctx)
+        g = Gen("x^2 - 1")
 
         factored = factor(g)
         @test occursin("x-1", to_string(factored)) || occursin("x+1", to_string(factored))

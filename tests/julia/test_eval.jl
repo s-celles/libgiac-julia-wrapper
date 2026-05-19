@@ -1,21 +1,13 @@
 # test_eval.jl
 # Tests for expression evaluation (User Story 1)
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 @testset "GIAC Wrapper Eval Tests" begin
     @testset "Version Functions" begin
-        @test giac_version() isa String
+        # giac_version() returns CxxWrap.StdLib.StdStringAllocated, not a
+        # Base.String; AbstractString accepts both.
+        @test giac_version() isa AbstractString
         @test !isempty(giac_version())
         # Issue #2: wrapper_version() now reads from meson.project_version()
         # at build time, so it never falls out of sync with meson.build.
@@ -29,18 +21,21 @@ end
 
     @testset "Basic Eval" begin
         ctx = GiacContext()
-        @test eval(ctx, "1+1") == "2"
-        @test eval(ctx, "2*3") == "6"
+        @test giac_eval(ctx, "1+1") == "2"
+        @test giac_eval(ctx, "2*3") == "6"
     end
 
     @testset "Factor Operation" begin
         ctx = GiacContext()
-        result = eval(ctx, "factor(x^2-1)")
+        result = giac_eval(ctx, "factor(x^2-1)")
         @test occursin("x-1", result) || occursin("x+1", result)
     end
 
     @testset "Error Handling" begin
+        # GIAC's parser is permissive: `invalid(((` triggers a warning and
+        # returns `undef`, it does NOT throw. `factor()` with no argument
+        # does throw, so use it as the exception witness.
         ctx = GiacContext()
-        @test_throws Exception eval(ctx, "invalid(((")
+        @test_throws Exception giac_eval(ctx, "factor()")
     end
 end

@@ -3,17 +3,7 @@
 #
 # Tests for REQ-C01..C17: Type introspection and predicates
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 @testset "Type Introspection Tests" begin
     @testset "Type Constants" begin

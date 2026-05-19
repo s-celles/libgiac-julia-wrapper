@@ -3,17 +3,7 @@
 #
 # Tests for REQ-C60..C62: Symbolic expression structure introspection
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 @testset "Symbolic Expression Access Tests" begin
     @testset "symb_sommet_name() - Function name extraction" begin

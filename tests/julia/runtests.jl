@@ -1,7 +1,13 @@
 # runtests.jl
-# Main test runner for GIAC Julia wrapper
+# Main test runner for GIAC Julia wrapper.
+#
+# Each `test_*.jl` includes `load_wrapper.jl` at its top; `load_wrapper.jl`
+# is guarded against re-loading so the `@wrapmodule` call only fires once
+# per Julia session. That makes both `julia tests/julia/runtests.jl` and
+# `julia tests/julia/test_<one>.jl` work, sharing the same loaded module.
 
 using Test
+include("load_wrapper.jl")
 
 @testset "GIAC Julia Wrapper" begin
     include("test_eval.jl")

@@ -3,17 +3,7 @@
 #
 # Tests for REQ-J30..J34: 1-based indexing and length
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 # Implement Julia collection interface for Gen
 import Base: getindex, length, lastindex
