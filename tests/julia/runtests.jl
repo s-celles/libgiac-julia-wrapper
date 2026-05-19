@@ -5,9 +5,10 @@
 # is guarded against re-loading so the `@wrapmodule` call only fires once
 # per Julia session. That makes both `julia tests/julia/runtests.jl` and
 # `julia tests/julia/test_<one>.jl` work, sharing the same loaded module.
+# Runtests itself does NOT load the wrapper — the first included test file
+# does, and the other 11 no-op through the guard.
 
 using Test
-include("load_wrapper.jl")
 
 @testset "GIAC Julia Wrapper" begin
     include("test_eval.jl")
