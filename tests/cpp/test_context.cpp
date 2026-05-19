@@ -97,39 +97,134 @@ TEST(issue3_bound_var_does_not_poison_desolve_in_other_context) {
     ASSERT_EQ("42", y_in_ctx1.to_string());
 }
 
-// Test timeout configuration
+// Test timeout configuration: default 30, round-trip, per-context isolation.
 TEST(timeout_config) {
+    // (a) Default.
     GiacContext ctx;
+    if (ctx.get_timeout() != 30.0) {
+        throw std::runtime_error("Expected default timeout 30.0, got: " +
+                                 std::to_string(ctx.get_timeout()));
+    }
 
-    // Timeout is not yet implemented, always returns 0
-    assert(ctx.get_timeout() == 0);
+    // (b) Round-trip.
+    ctx.set_timeout(60.0);
+    if (ctx.get_timeout() != 60.0) {
+        throw std::runtime_error("Expected get_timeout() == 60.0 after set_timeout(60.0), got: " +
+                                 std::to_string(ctx.get_timeout()));
+    }
+    ctx.set_timeout(0.0);
+    if (ctx.get_timeout() != 0.0) {
+        throw std::runtime_error("Expected get_timeout() == 0.0 after set_timeout(0.0), got: " +
+                                 std::to_string(ctx.get_timeout()));
+    }
 
-    ctx.set_timeout(60);
-    assert(ctx.get_timeout() == 0);  // stub: still returns 0
-
-    ctx.set_timeout(0);
-    assert(ctx.get_timeout() == 0);
+    // (c) Per-context isolation.
+    GiacContext ctx_a;
+    GiacContext ctx_b;
+    ctx_a.set_timeout(60.0);
+    ctx_b.set_timeout(120.0);
+    if (ctx_a.get_timeout() != 60.0 || ctx_b.get_timeout() != 120.0) {
+        throw std::runtime_error("Per-context isolation broken: a=" +
+                                 std::to_string(ctx_a.get_timeout()) + ", b=" +
+                                 std::to_string(ctx_b.get_timeout()));
+    }
+    // A fresh context still reads the default — no leak from a or b.
+    GiacContext ctx_c;
+    if (ctx_c.get_timeout() != 30.0) {
+        throw std::runtime_error("Fresh context did not get default timeout, got: " +
+                                 std::to_string(ctx_c.get_timeout()));
+    }
 }
 
-// Test precision configuration
+// Test precision configuration: round-trip, isolation, effect on evalf(pi).
 TEST(precision_config) {
     GiacContext ctx;
 
-    // Precision setter is not yet implemented, get_precision always returns 15
+    // (a) Read GIAC's default — empirically 14 on this libgiac, but we don't hardcode it.
+    int default_prec = ctx.get_precision();
+    if (default_prec <= 0) {
+        throw std::runtime_error("Expected positive default precision, got: " +
+                                 std::to_string(default_prec));
+    }
+
+    // (b) Round-trip.
     ctx.set_precision(50);
-    assert(ctx.get_precision() == 15);  // stub: still returns default
+    if (ctx.get_precision() != 50) {
+        throw std::runtime_error("Expected get_precision() == 50 after set_precision(50), got: " +
+                                 std::to_string(ctx.get_precision()));
+    }
+
+    // (c) Per-context isolation.
+    GiacContext ctx_a;
+    GiacContext ctx_b;
+    ctx_a.set_precision(50);
+    ctx_b.set_precision(20);
+    if (ctx_a.get_precision() != 50 || ctx_b.get_precision() != 20) {
+        throw std::runtime_error("Per-context isolation broken: a=" +
+                                 std::to_string(ctx_a.get_precision()) + ", b=" +
+                                 std::to_string(ctx_b.get_precision()));
+    }
+
+    // (d) Effect on evaluation: evalf(pi) at precision 50 must carry at least 45
+    // significant digits. Result strings start with "3." — count chars after the dot.
+    GiacContext ctx_50;
+    ctx_50.set_precision(50);
+    std::string pi_50 = ctx_50.eval("evalf(pi)");
+    auto dot = pi_50.find('.');
+    if (dot == std::string::npos) {
+        throw std::runtime_error("Expected evalf(pi) to contain a decimal point, got: " + pi_50);
+    }
+    // Count consecutive digits after the dot.
+    size_t digits_after_dot = 0;
+    for (size_t i = dot + 1; i < pi_50.size() && std::isdigit(static_cast<unsigned char>(pi_50[i])); ++i) {
+        ++digits_after_dot;
+    }
+    if (digits_after_dot < 45) {
+        throw std::runtime_error("Expected at least 45 digits after the dot at precision 50, got " +
+                                 std::to_string(digits_after_dot) + " digits in: " + pi_50);
+    }
 }
 
-// Test complex mode
+// Test complex mode: round-trip, per-context isolation, effect on evaluation.
 TEST(complex_mode) {
+    // (a) Round-trip on a single context.
     GiacContext ctx;
-
-    // Complex mode setter is not yet implemented, always returns false
     ctx.set_complex_mode(true);
-    assert(ctx.is_complex_mode() == false);  // stub: still returns false
-
+    assert(ctx.is_complex_mode() == true);
     ctx.set_complex_mode(false);
     assert(ctx.is_complex_mode() == false);
+
+    // (b) Per-context isolation: two contexts with opposite values both report their own.
+    GiacContext ctx_a;
+    GiacContext ctx_b;
+    ctx_a.set_complex_mode(true);
+    ctx_b.set_complex_mode(false);
+    assert(ctx_a.is_complex_mode() == true);
+    assert(ctx_b.is_complex_mode() == false);
+    // Re-read after flipping ctx_a — ctx_b must be unaffected.
+    ctx_a.set_complex_mode(false);
+    assert(ctx_a.is_complex_mode() == false);
+    assert(ctx_b.is_complex_mode() == false);
+
+    // (c) Effect on evaluation: factor(x^2+1) splits over complex only when complex mode is on.
+    // Empirically sqrt(-1) returns 'i' regardless of complex_mode in this giac version, so it
+    // is not a witness for the flag's effect on evaluation; factor and solve are.
+    // mode=1: factor(x^2+1) => (x+i)*(x-i)    mode=0: factor(x^2+1) => x^2+1
+    GiacContext ctx_on;
+    ctx_on.set_complex_mode(true);
+    std::string r_on = ctx_on.eval("factor(x^2+1)");
+    if (r_on.find('i') == std::string::npos) {
+        throw std::runtime_error(
+            "Expected complex-mode factor(x^2+1) to contain 'i', got: " + r_on);
+    }
+
+    GiacContext ctx_off;
+    ctx_off.set_complex_mode(false);
+    std::string r_off = ctx_off.eval("factor(x^2+1)");
+    if (r_off.find('i') != std::string::npos) {
+        throw std::runtime_error(
+            "Expected real-mode factor(x^2+1) to NOT contain 'i', got: " + r_off);
+    }
 }
 
 int main() {

@@ -30,8 +30,14 @@ struct GiacContextImpl {
     // internal reference counting. This is an intentional leak to prevent crashes.
     giac::context* ctx;
     std::function<void(const std::string&)> warning_handler;
+    // Wrapper-internal per-context timeout. GIAC has no per-context timeout
+    // accessor (only the process-global caseval_maxtime), so this lives on
+    // GiacContextImpl. Currently round-trip only — no evaluation interruption.
+    double timeout_seconds_;
 
-    GiacContextImpl() : ctx(new giac::context()), warning_handler(nullptr) {}
+    GiacContextImpl() : ctx(new giac::context()),
+                        warning_handler(nullptr),
+                        timeout_seconds_(30.0) {}
     // Destructor intentionally does NOT delete ctx
 };
 
@@ -464,29 +470,27 @@ std::string GiacContext::get_variable(const std::string& name) {
 }
 
 void GiacContext::set_timeout(double seconds) {
-    // Store timeout value (GIAC API varies by version)
-    (void)seconds; // TODO: Implement when GIAC API is known
+    impl_->timeout_seconds_ = seconds;
 }
 
 double GiacContext::get_timeout() const {
-    return 0.0; // TODO: Implement when GIAC API is known
+    return impl_->timeout_seconds_;
 }
 
 void GiacContext::set_precision(int digits) {
-    // Store precision value (GIAC API varies by version)
-    (void)digits; // TODO: Implement when GIAC API is known
+    giac::decimal_digits(digits, impl_->ctx);
 }
 
 int GiacContext::get_precision() const {
-    return 15; // Default precision, TODO: Implement properly
+    return giac::decimal_digits(impl_->ctx);
 }
 
 bool GiacContext::is_complex_mode() const {
-    return false; // TODO: Implement when GIAC API is known
+    return giac::complex_mode(impl_->ctx);
 }
 
 void GiacContext::set_complex_mode(bool enable) {
-    (void)enable; // TODO: Implement when GIAC API is known
+    giac::complex_mode(enable, impl_->ctx);
 }
 
 void GiacContext::set_warning_handler(std::function<void(const std::string&)> handler) {

@@ -57,12 +57,40 @@ end
 
         set_timeout(ctx, 60)
         @test get_timeout(ctx) == 60
+
+        # Per-context isolation
+        ctx_a = GiacContext()
+        ctx_b = GiacContext()
+        set_timeout(ctx_a, 60)
+        set_timeout(ctx_b, 120)
+        @test get_timeout(ctx_a) == 60
+        @test get_timeout(ctx_b) == 120
+        # A fresh context still reads the default — no leak from a or b.
+        ctx_c = GiacContext()
+        @test get_timeout(ctx_c) == 30
     end
 
     @testset "Precision Configuration" begin
         ctx = GiacContext()
         set_precision(ctx, 50)
         @test get_precision(ctx) == 50
+
+        # Per-context isolation
+        ctx_a = GiacContext()
+        ctx_b = GiacContext()
+        set_precision(ctx_a, 50)
+        set_precision(ctx_b, 20)
+        @test get_precision(ctx_a) == 50
+        @test get_precision(ctx_b) == 20
+
+        # Effect on evaluation: evalf(pi) at precision 50 → ≥45 digits after the dot
+        ctx_50 = GiacContext()
+        set_precision(ctx_50, 50)
+        pi_str = to_string(giac_eval("evalf(pi)", ctx_50))
+        dot = findfirst('.', pi_str)
+        @test dot !== nothing
+        digits_after = count(isdigit, pi_str[dot+1:end])
+        @test digits_after >= 45
     end
 
     @testset "Complex Mode" begin
@@ -73,5 +101,26 @@ end
 
         set_complex_mode(ctx, false)
         @test is_complex_mode(ctx) == false
+
+        # Per-context isolation
+        ctx_a = GiacContext()
+        ctx_b = GiacContext()
+        set_complex_mode(ctx_a, true)
+        set_complex_mode(ctx_b, false)
+        @test is_complex_mode(ctx_a) == true
+        @test is_complex_mode(ctx_b) == false
+        set_complex_mode(ctx_a, false)
+        @test is_complex_mode(ctx_b) == false  # ctx_b unaffected
+
+        # Effect on evaluation: factor(x^2+1) splits over complex only in complex mode.
+        # sqrt(-1) returns "i" regardless of complex_mode in this giac version,
+        # so factor (or solve) is the reliable witness for the flag's evaluator effect.
+        ctx_on = GiacContext()
+        set_complex_mode(ctx_on, true)
+        @test occursin("i", to_string(giac_eval("factor(x^2+1)", ctx_on)))
+
+        ctx_off = GiacContext()
+        set_complex_mode(ctx_off, false)
+        @test !occursin("i", to_string(giac_eval("factor(x^2+1)", ctx_off)))
     end
 end
