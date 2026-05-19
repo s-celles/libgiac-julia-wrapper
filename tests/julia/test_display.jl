@@ -3,17 +3,7 @@
 #
 # Tests for REQ-J50..J52: Human-readable REPL display
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 # ============================================================================
 # Base.show implementations (REQ-J50..J52)

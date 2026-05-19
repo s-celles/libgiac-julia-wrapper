@@ -1,23 +1,13 @@
 # test_context.jl
 # Tests for context management (User Story 2)
 
-using Test
-using CxxWrap
-using Libdl
-
-# Load the wrapper library
-const libgiac_wrapper = joinpath(@__DIR__, "..", "..", "build", "src", "libgiac_wrapper")
-@wrapmodule(() -> libgiac_wrapper)
-
-function __init__()
-    @initcxx
-end
+include(joinpath(@__DIR__, "load_wrapper.jl"))
 
 @testset "GIAC Wrapper Context Tests" begin
     @testset "Variable Assignment" begin
         ctx = GiacContext()
         set_variable(ctx, "a", "5")
-        result = eval(ctx, "a+3")
+        result = giac_eval(ctx, "a+3")
         @test result == "8"
     end
 
