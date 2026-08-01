@@ -1,0 +1,43 @@
+# Keeps the pinned GitHub Actions current.
+#
+# Nothing watched them before. When this was written, three of the four
+# pinned actions were behind, one of them by three majors:
+#
+#   actions/checkout             v4  ->  v7.0.1
+#   julia-actions/setup-julia    v2  ->  v3.0.2
+#   julia-actions/cache          v2  ->  v3.2.0
+#   msys2/setup-msys2            v2  ->  v2.32.0   (current major)
+#
+# That last one is the Windows toolchain, and Windows is where this
+# wrapper's ABI behaviour actually matters — see the `_REAL` / `_DOUBLE_`
+# mis-tagging tracked in JuliaPackaging/Yggdrasil#13717. A CI whose
+# toolchain quietly drifts is a poor judge of whether that fix works.
+#
+# SCOPE, so nobody mistakes this file for full coverage: Dependabot has no
+# meson ecosystem, and this project builds with meson. Its C++ dependencies
+# stay unwatched. This covers the four GitHub Actions and nothing else.
+#
+# One PR per action rather than a combined bump, so a failure is
+# attributable to the action that caused it. That matters most when crossing
+# a major: a bot updates the version string, never the configuration the new
+# major expects. `julia-actions/setup-julia` v3, for one, rejects an explicit
+# `arch: x64` on Apple Silicon runners — harmless here, since this matrix
+# does not pin `arch`, but it broke the equivalent bump in s-celles/Giac.jl#52.
+#
+# NOTE: `.gitignore` ignores everything by default (`*` on line 1) and allows
+# files back one pattern at a time. This file needs its own entry —
+# `!.github/dependabot.yml` — because the allowlist's `.github/workflows/*.yml`
+# does not reach the root of `.github/`, and GitHub requires the config at
+# exactly this path.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - dependencies

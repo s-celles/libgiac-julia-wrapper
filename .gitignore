@@ -20,5 +20,6 @@
 !tests/julia/*.jl
 
 !.github/
+!.github/dependabot.yml
 !.github/workflows/
 !.github/workflows/*.yml
