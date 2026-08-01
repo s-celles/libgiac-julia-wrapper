@@ -5,24 +5,21 @@
 name: CI
 
 on:
-  # `push` deliberately does not list `'**'`. With a wildcard, any branch that
-  # also has an open PR ran the whole matrix twice on the same commit — once
-  # for `push`, once for `pull_request` — doubling CI across three platforms,
-  # Windows included. Branch work is covered by the `pull_request` trigger;
-  # this keeps `push` for the trunk and for release tags.
+  # Every branch is built, so pushing without opening a PR still gets CI.
   push:
-    branches:
-      - main
+    branches: ['**']
     tags:
       - 'v*'
   pull_request:
     branches: [main]
 
-# Supersede an in-flight run when a PR is pushed to again. Not applied to
+# Supersede an in-flight run when a branch is pushed to again. Not applied to
 # `main` or to tags, where every commit deserves its own recorded result.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+  cancel-in-progress: >-
+    ${{ github.ref != 'refs/heads/main'
+        && !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
   actions: write
@@ -30,6 +27,18 @@ permissions:
 
 jobs:
   build:
+    # Both triggers fire for a branch in this repository that also has an open
+    # PR, which would run the whole matrix twice on one commit. The `push` run
+    # already covers it, so the `pull_request` run is skipped — except for
+    # forks, whose branches never produce a `push` event here and which would
+    # otherwise get no CI at all.
+    #
+    # Trade-off, deliberately taken: a same-repository PR is therefore tested
+    # at its branch head rather than at the merge with `main`. Fork PRs keep
+    # the merge-result testing that `pull_request` provides.
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name != github.repository
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
